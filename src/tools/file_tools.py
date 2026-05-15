@@ -1,103 +1,208 @@
-import os
-import re
-from pathlib import Path
-from typing import List, Optional
+from typing import Dict, Any, List
+from .base import BaseTool
+from .file_system import FileSystemTools
 
-class FileSystemTools:
-    ALLOWED_BASE_PATH = "/projects"
-    MAX_FILE_SIZE = 10 * 1024 * 1024
+class FileTools(BaseTool):
+    name = "file_tools"
+    description = "Read, write, edit, and search files in project"
     
-    def __init__(self, project_id: str):
-        self.project_path = Path(self.ALLOWED_BASE_PATH) / project_id
-        self.project_path.mkdir(parents=True, exist_ok=True)
+    def __init__(self, project_id: str = None):
+        self.project_id = project_id or "default"
+        self.fs_tools = FileSystemTools(project_id=self.project_id)
     
-    def _validate_path(self, file_path: str) -> Path:
-        full_path = (self.project_path / file_path).resolve()
-        if not str(full_path).startswith(str(self.project_path)):
-            raise ValueError("Path traversal detected")
-        return full_path
+    async def execute(self, input: Dict[str, Any]) -> Any:
+        action = input.get("action")
+        
+        if action == "read":
+            return await self._read_file(input)
+        elif action == "write":
+            return await self._write_file(input)
+        elif action == "edit":
+            return await self._edit_file(input)
+        elif action == "search":
+            return await self._search_files(input)
+        elif action == "list":
+            return await self._list_files(input)
+        elif action == "delete":
+            return await self._delete_file(input)
+        elif action == "create_dir":
+            return await self._create_directory(input)
+        elif action == "copy":
+            return await self._copy_file(input)
+        elif action == "move":
+            return await self._move_file(input)
+        else:
+            return {"error": f"Unknown action: {action}"}
     
-    def read_file(self, file_path: str) -> str:
-        path = self._validate_path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+    async def _read_file(self, input: Dict) -> Dict:
+        file_path = input.get("path")
         
-        if path.stat().st_size > self.MAX_FILE_SIZE:
-            raise ValueError("File too large")
+        if not file_path:
+            return {"error": "Path is required"}
         
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
+        try:
+            content = self.fs_tools.read_file(file_path)
+            return {
+                "status": "ok",
+                "path": file_path,
+                "content": content,
+                "size": len(content)
+            }
+        except FileNotFoundError as e:
+            return {"status": "error", "error": str(e)}
+        except ValueError as e:
+            return {"status": "error", "error": str(e)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
-    def write_file(self, file_path: str, content: str) -> str:
-        path = self._validate_path(file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+    async def _write_file(self, input: Dict) -> Dict:
+        file_path = input.get("path")
+        content = input.get("content", "")
         
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        if not file_path:
+            return {"error": "Path is required"}
         
-        return f"File written: {file_path}"
+        if not content:
+            return {"error": "Content is required"}
+        
+        try:
+            result = self.fs_tools.write_file(file_path, content)
+            return {
+                "status": "ok",
+                "result": result,
+                "path": file_path,
+                "size": len(content)
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
-    def edit_file(self, file_path: str, old_content: str, new_content: str) -> str:
-        path = self._validate_path(file_path)
+    async def _edit_file(self, input: Dict) -> Dict:
+        file_path = input.get("path")
+        old_content = input.get("old_content")
+        new_content = input.get("new_content")
         
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+        if not all([file_path, old_content, new_content]):
+            return {"error": "path, old_content, and new_content are required"}
         
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        if old_content not in content:
-            raise ValueError("Old content not found in file")
-        
-        updated_content = content.replace(old_content, new_content, 1)
-        
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(updated_content)
-        
-        return f"File edited: {file_path}"
+        try:
+            result = self.fs_tools.edit_file(file_path, old_content, new_content)
+            return {
+                "status": "ok",
+                "result": result,
+                "path": file_path
+            }
+        except FileNotFoundError as e:
+            return {"status": "error", "error": str(e)}
+        except ValueError as e:
+            return {"status": "error", "error": str(e)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
-    def search_codebase(self, pattern: str, file_extension: Optional[str] = None) -> List[dict]:
-        results = []
-        search_pattern = re.compile(pattern, re.IGNORECASE)
+    async def _search_files(self, input: Dict) -> Dict:
+        pattern = input.get("pattern")
+        file_extension = input.get("extension")
         
-        for root, dirs, files in os.walk(self.project_path):
-            for file in files:
-                if file_extension and not file.endswith(file_extension):
-                    continue
-                
-                file_path = Path(root) / file
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        for line_num, line in enumerate(f, 1):
-                            if search_pattern.search(line):
-                                results.append({
-                                    "file": str(file_path.relative_to(self.project_path)),
-                                    "line": line_num,
-                                    "content": line.strip()
-                                })
-                except Exception:
-                    continue
+        if not pattern:
+            return {"error": "Pattern is required"}
         
-        return results
+        try:
+            results = self.fs_tools.search_codebase(pattern, file_extension)
+            return {
+                "status": "ok",
+                "pattern": pattern,
+                "results": results,
+                "count": len(results)
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
-    def list_files(self, directory: str = ".") -> List[str]:
-        path = self._validate_path(directory)
+    async def _list_files(self, input: Dict) -> Dict:
+        directory = input.get("directory", ".")
         
-        if not path.exists():
-            raise FileNotFoundError(f"Directory not found: {directory}")
-        
-        files = []
-        for item in path.iterdir():
-            if item.is_file():
-                files.append(str(item.relative_to(self.project_path)))
-        
-        return files
+        try:
+            files = self.fs_tools.list_files(directory)
+            return {
+                "status": "ok",
+                "directory": directory,
+                "files": files,
+                "count": len(files)
+            }
+        except FileNotFoundError as e:
+            return {"status": "error", "error": str(e)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
-    def delete_file(self, file_path: str) -> str:
-        path = self._validate_path(file_path)
+    async def _delete_file(self, input: Dict) -> Dict:
+        file_path = input.get("path")
         
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+        if not file_path:
+            return {"error": "Path is required"}
         
-        path.unlink()
-        return f"File deleted: {file_path}"
+        try:
+            result = self.fs_tools.delete_file(file_path)
+            return {
+                "status": "ok",
+                "result": result
+            }
+        except FileNotFoundError as e:
+            return {"status": "error", "error": str(e)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    async def _create_directory(self, input: Dict) -> Dict:
+        directory = input.get("path")
+        
+        if not directory:
+            return {"error": "Path is required"}
+        
+        try:
+            safe_path = self.fs_tools._validate_path(directory)
+            safe_path.mkdir(parents=True, exist_ok=True)
+            return {
+                "status": "ok",
+                "path": str(safe_path)
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    async def _copy_file(self, input: Dict) -> Dict:
+        source = input.get("source")
+        destination = input.get("destination")
+        
+        if not all([source, destination]):
+            return {"error": "Source and destination are required"}
+        
+        try:
+            import shutil
+            src_path = self.fs_tools._validate_path(source)
+            dst_path = self.fs_tools._validate_path(destination)
+            
+            shutil.copy2(src_path, dst_path)
+            return {
+                "status": "ok",
+                "source": source,
+                "destination": destination
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    async def _move_file(self, input: Dict) -> Dict:
+        source = input.get("source")
+        destination = input.get("destination")
+        
+        if not all([source, destination]):
+            return {"error": "Source and destination are required"}
+        
+        try:
+            import shutil
+            src_path = self.fs_tools._validate_path(source)
+            dst_path = self.fs_tools._validate_path(destination)
+            
+            shutil.move(str(src_path), str(dst_path))
+            return {
+                "status": "ok",
+                "source": source,
+                "destination": destination
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
