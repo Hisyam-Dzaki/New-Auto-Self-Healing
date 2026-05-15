@@ -36,7 +36,11 @@ class LLMRouter:
             self.providers["openrouter"] = OpenRouterProvider(os.getenv("OPENROUTER_API_KEY"))
         
         if os.getenv("NINEROUTER_API_KEY"):
-            self.providers["9router"] = NineRouterProvider(os.getenv("NINEROUTER_API_KEY"))
+            base_url = os.getenv("NINEROUTER_BASE_URL")
+            self.providers["9router"] = NineRouterProvider(
+                os.getenv("NINEROUTER_API_KEY"), 
+                base_url=base_url
+            )
 
     def get_provider(self, model: str) -> BaseLLMProvider:
         if model.startswith("gpt"):

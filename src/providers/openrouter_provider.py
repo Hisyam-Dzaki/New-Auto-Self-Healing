@@ -1,6 +1,7 @@
 from typing import AsyncGenerator, List, Dict
 from .base import BaseLLMProvider
 import httpx
+import os
 
 class OpenRouterProvider(BaseLLMProvider):
     def __init__(self, api_key: str):
@@ -67,9 +68,18 @@ class OpenRouterProvider(BaseLLMProvider):
 class NineRouterProvider(OpenRouterProvider):
     """9Router - Indonesian LLM Provider (Compatible with OpenRouter API)"""
     
-    def __init__(self, api_key: str):
-        super().__init__(api_key)
-        self.base_url = "https://router.9router.com/api/v1"
+    DEFAULT_BASE_URL = "https://router.9router.com/api/v1"
+    
+    def __init__(self, api_key: str, base_url: str = None):
+        self.api_key = api_key
+        self.base_url = base_url or os.getenv("NINEROUTER_BASE_URL", self.DEFAULT_BASE_URL)
+        self.client = httpx.AsyncClient(
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "HTTP-Referer": "https://agentforge.local",
+                "X-Title": "AgentForge"
+            }
+        )
 
     async def stream_completion(
         self, 
