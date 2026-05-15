@@ -68,11 +68,9 @@ class OpenRouterProvider(BaseLLMProvider):
 class NineRouterProvider(OpenRouterProvider):
     """9Router - Indonesian LLM Provider (Compatible with OpenRouter API)"""
     
-    DEFAULT_BASE_URL = "https://router.9router.com/api/v1"
-    
     def __init__(self, api_key: str, base_url: str = None):
         self.api_key = api_key
-        self.base_url = base_url or os.getenv("NINEROUTER_BASE_URL", self.DEFAULT_BASE_URL)
+        self.base_url = base_url or os.getenv("NINEROUTER_BASE_URL", "https://router.9router.com/api/v1")
         self.client = httpx.AsyncClient(
             headers={
                 "Authorization": f"Bearer {api_key}",
