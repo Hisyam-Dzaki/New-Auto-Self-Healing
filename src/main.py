@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import chat, projects, containers, files
+from src.api import chat, projects, containers, files, healing
 import uvicorn
 
-app = FastAPI(title="AgentForge API", version="1.0.0")
+app = FastAPI(title="AgentForge API - Self-Healing System", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +17,7 @@ app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(containers.router, prefix="/api", tags=["containers"])
 app.include_router(files.router, prefix="/api", tags=["files"])
+app.include_router(healing.router, prefix="/api", tags=["healing"])
 
 @app.get("/")
 async def root():

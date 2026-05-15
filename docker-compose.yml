@@ -12,6 +12,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
     volumes:
       - ./projects:/projects
       - ./data:/data
@@ -21,6 +23,27 @@ services:
       - redis
     networks:
       - agentforge
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - ./projects:/projects
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+      - ollama
+    networks:
+      - agentforge
+    restart: unless-stopped
 
   web:
     build:
@@ -56,10 +79,25 @@ services:
       - redis_data:/data
     networks:
       - agentforge
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - agentforge
+    deploy:
+      resources:
+        limits:
+          memory: 4g
 
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
 
 networks:
   agentforge:

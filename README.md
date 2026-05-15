@@ -1,284 +1,288 @@
-# AgentForge
-
-Local-first AI Agent Platform for autonomous software development and operations.
-
-## Features
-
-- 🤖 Multi-provider LLM support (OpenAI, Anthropic, Gemini, DeepSeek, Ollama)
-- 🐳 Docker-based isolated execution
-- 🔧 Extensible tool system
-- 🔄 Workflow automation
-- 📊 Real-time logs and observability
-- 🔒 Security-first design with guardrails
+# AgentForge - Single Device Self-Healing System
 
 ## Architecture
 
 ```
-┌─────────────┐
-│   Web UI    │ (Next.js)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│  API Layer  │ (FastAPI)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│ Agent Core  │ (Planner, Router, Memory)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│ Tool Layer  │ (File, Docker, Git, Shell)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│  Execution  │ (Docker Runtime)
-└─────────────┘
+┌─────────────────────────────────────────────────┐
+│           SINGLE DEVICE DEPLOYMENT              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │   API    │  │  Worker  │  │   Web    │    │
+│  │  :8000   │  │ (async)  │  │  :3000   │    │
+│  └────┬─────┘  └────┬─────┘  └──────────┘    │
+│       │             │                          │
+│  ┌────▼─────────────▼─────┐  ┌──────────┐    │
+│  │       Redis            │  │ Ollama   │    │
+│  │  Queue/Cache/State     │  │ :11434   │    │
+│  └────────────────────────┘  └──────────┘    │
+│                                                 │
+│  ┌──────────┐  ┌──────────┐                   │
+│  │ Postgres │  │  Docker  │                   │
+│  │  :5432   │  │  Socket  │                   │
+│  └──────────┘  └──────────┘                   │
+└─────────────────────────────────────────────────┘
 ```
+
+## Self-Healing Flow
+
+```
+EVENT DETECTED
+    ↓
+COLLECT LOGS
+    ↓
+CLASSIFY ERROR (LogAnalyzer)
+    ↓
+CHECK CACHE (Redis)
+    ↓
+ATTEMPT 1: Deterministic Fix
+    ├─ restart service
+    ├─ clear cache
+    ├─ cleanup disk
+    └─ kill zombies
+    ↓
+ATTEMPT 2: Local AI (Ollama)
+    └─ codellama:7b
+    ↓
+ATTEMPT 3: Cloud AI (9Router/Claude)
+    └─ anthropic/claude-3.5-sonnet
+    ↓
+DEPLOY FIX
+    ↓
+VERIFY HEALTH
+    ↓
+SUCCESS or ROLLBACK
+```
+
+## Worker Modes
+
+The worker runs 4 concurrent loops:
+
+1. **Monitor Loop** (30s interval)
+   - Check CPU, RAM, disk
+   - Detect anomalies
+   - Push issues to queue
+
+2. **Process Loop** (continuous)
+   - Pop tasks from queue
+   - Lock task
+   - Execute healing
+   - Retry or deadletter
+
+3. **Retry Loop** (10s interval)
+   - Process retry queue
+   - Re-queue with delay
+
+4. **Cleanup Loop** (1h interval)
+   - Disk cleanup
+   - Log rotation
+
+## API Endpoints
+
+### Healing
+- `POST /api/heal/trigger` - Manual trigger
+- `GET /api/heal/status/{task_id}` - Task status
+- `GET /api/worker/status` - Worker health
+
+### Monitoring
+- `GET /api/monitor/resources` - CPU/RAM/Disk
+- `GET /api/monitor/docker` - Container stats
+
+### Queue
+- `GET /api/queue/status` - Queue sizes
+- `GET /api/queue/deadletter` - Failed tasks
+- `POST /api/queue/clear/{queue}` - Clear queue
+
+### Analysis
+- `POST /api/analyze/logs` - Classify logs
+
+## Redis Structure
+
+```
+Queues:
+  queue:incoming      - New tasks
+  queue:processing    - Active tasks
+  queue:retry         - Failed tasks (retry)
+  queue:deadletter    - Max retries exceeded
+
+Locks:
+  lock:task:{id}      - Task execution lock
+
+Cache:
+  cache:fix:{sig}     - Cached fixes
+
+State:
+  state:worker        - Worker status
+  state:service       - Service health
+  state:task:{id}     - Task result
+```
+
+## Retry Policy
+
+| Attempt | Method | Model | Timeout |
+|---------|--------|-------|---------|
+| 1 | Deterministic | - | 30s |
+| 2 | Local AI | codellama:7b | 60s |
+| 3 | Cloud AI | claude-3.5-sonnet | 120s |
+| 4 | Deadletter | - | - |
+
+## Resource Limits
+
+```yaml
+RAM: < 8GB total
+  - API: 512MB
+  - Worker: 1GB
+  - Ollama: 4GB
+  - Redis: 2GB
+  - Postgres: 512MB
+
+CPU: Avoid 100% continuous
+  - Use cooldowns
+  - Monitor spikes
+
+Disk:
+  - Rotate logs daily
+  - Cleanup temp files
+  - Alert at 90%
+```
+
+## Supported Issues
+
+- Container crash
+- API timeout
+- Memory leak
+- CPU spike
+- Disk full
+- Redis unavailable
+- Missing dependency
+- Broken config
+- Health check fail
+- Infinite restart loop
+- Queue stuck
+- Process deadlock
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker & Docker Compose
-- Python 3.11+
-- Node.js 20+
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/Hisyam-Dzaki/New-Auto-Self-Healing.git
-cd New-Auto-Self-Healing
-```
-
-2. Copy environment file:
-```bash
+# 1. Set environment variables
 cp .env.example .env
-```
+# Edit .env with your API keys
 
-3. Configure API keys in `.env`:
-```env
-OPENAI_API_KEY=your_key_here
-ANTHROPIC_API_KEY=your_key_here
-```
-
-4. Start services:
-```bash
+# 2. Start all services
 docker-compose up -d
+
+# 3. Pull Ollama model (first time)
+docker exec -it agentforge-ollama ollama pull codellama:7b
+
+# 4. Check worker status
+curl http://localhost:8000/api/worker/status
+
+# 5. Trigger manual healing
+curl -X POST http://localhost:8000/api/heal/trigger \
+  -H "Content-Type: application/json" \
+  -d '{
+    "service": "api",
+    "logs": "Error: Connection refused",
+    "severity": "high"
+  }'
 ```
 
-5. Access the application:
-- Web UI: http://localhost:3000
-- API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
-## Project Structure
-
-```
-/
-├── src/
-│   ├── agent/          # Agent core logic
-│   ├── api/            # FastAPI routes
-│   ├── providers/      # LLM providers
-│   ├── tools/          # Tool implementations
-│   ├── execution/      # Docker execution
-│   ├── models/         # Database models
-│   └── main.py         # API entry point
-├── docker/
-│   ├── Dockerfile      # API container
-│   └── Dockerfile.web  # Web UI container
-├── projects/           # User projects
-├── data/               # Application data
-└── docker-compose.yml
-```
-
-## Core Features
-
-### 1. AI Chat Workspace
-- Natural language interaction
-- Streaming responses
-- Context-aware conversations
-
-### 2. Project Management
-- Create, manage, and delete projects
-- Runtime and framework detection
-- Container lifecycle management
-
-### 3. Multi-Provider LLM
-- Dynamic model routing
-- Provider abstraction
-- Cost and latency optimization
-
-### 4. Docker Execution
-- Isolated project containers
-- Resource limits (CPU, RAM)
-- Safe command execution
-
-### 5. Tool System
-- File operations (read, write, search)
-- Docker control
-- Git operations
-- Shell commands (whitelisted)
-
-### 6. Workflow Engine
-- Preset workflows (build, debug, refactor)
-- Custom workflow creation
-- Step-by-step execution
-
-### 7. Observability
-- Execution logs
-- Token usage tracking
-- Performance metrics
-
-## Security
-
-- Command whitelist enforcement
-- Filesystem isolation (`/projects/*` only)
-- Docker restrictions (no privileged mode)
-- Resource limits per container
-- API key encryption
-
-## Development
-
-### Backend Development
+## Monitoring
 
 ```bash
-cd src
-pip install -r requirements.txt
-uvicorn main:app --reload
+# Resource metrics
+curl http://localhost:8000/api/monitor/resources
+
+# Docker stats
+curl http://localhost:8000/api/monitor/docker
+
+# Queue status
+curl http://localhost:8000/api/queue/status
+
+# Deadletter tasks
+curl http://localhost:8000/api/queue/deadletter
 ```
 
-### Frontend Development
+## Safety Guardrails
+
+**NEVER:**
+- Delete entire project
+- Run `rm -rf` blindly
+- Expose secrets
+- Deploy untested patches
+- Disable security
+
+**ALWAYS:**
+- Backup before patch
+- Validate syntax
+- Run tests
+- Use rollback
+- Log all actions
+
+## Technology Stack
+
+- **API**: FastAPI
+- **Worker**: AsyncIO (no Celery)
+- **Queue**: Redis
+- **Local AI**: Ollama (codellama:7b)
+- **Cloud AI**: 9Router → Claude/GPT
+- **DB**: PostgreSQL
+- **Containers**: Docker Compose
+
+## Philosophy
+
+- **Local First**: Try local fixes before cloud AI
+- **Simple**: No Kubernetes, no distributed systems
+- **Cheap**: Minimize cloud API calls
+- **Safe**: Rollback on failure
+- **Observable**: Log everything
+- **Autonomous**: Minimal human intervention
+
+## Logs
 
 ```bash
-npm install
-npm run dev
+# API logs
+docker logs agentforge-api-1 -f
+
+# Worker logs
+docker logs agentforge-worker-1 -f
+
+# Ollama logs
+docker logs agentforge-ollama-1 -f
 ```
 
-### Database Migrations
+## Troubleshooting
 
+### Worker not starting
 ```bash
-alembic upgrade head
+docker logs agentforge-worker-1
+# Check Redis connection
+docker exec -it agentforge-redis-1 redis-cli ping
 ```
 
-## Configuration
+### Ollama not responding
+```bash
+# Pull model manually
+docker exec -it agentforge-ollama-1 ollama pull codellama:7b
 
-### Agent Configuration
-
-Edit `config.yml`:
-
-```yaml
-agent:
-  default_provider: openai
-  default_model: gpt-4
-
-docker:
-  cpu_limit: 2
-  memory_limit: 4g
-  timeout: 600
-
-security:
-  allowed_commands:
-    - git
-    - npm
-    - python
-    - docker
+# Check Ollama health
+curl http://localhost:11434/api/tags
 ```
 
-### Model Routing
-
-Configure per-task model selection:
-
-```yaml
-routing:
-  planning:
-    provider: anthropic
-    model: claude-opus
-  
-  coding:
-    provider: deepseek
-    model: deepseek-coder
-  
-  summarization:
-    provider: openai
-    model: gpt-3.5-turbo
+### Queue stuck
+```bash
+# Clear all queues
+curl -X POST http://localhost:8000/api/queue/clear/incoming
+curl -X POST http://localhost:8000/api/queue/clear/retry
 ```
 
-## API Documentation
+## Performance
 
-### Chat Endpoint
-
-```http
-POST /api/agent/prompt
-Content-Type: application/json
-
-{
-  "message": "Create a FastAPI backend",
-  "projectId": "uuid",
-  "model": "gpt-4",
-  "workflow": "build-app"
-}
-```
-
-### Project Management
-
-```http
-POST /api/projects
-GET /api/projects
-GET /api/projects/{id}
-DELETE /api/projects/{id}
-```
-
-### Container Control
-
-```http
-POST /api/containers/{project_id}/build
-POST /api/containers/{project_id}/run
-POST /api/containers/{project_id}/stop
-GET /api/containers/{project_id}/logs
-```
-
-## Roadmap
-
-### Phase 1 (MVP) ✅
-- [x] Multi-provider LLM
-- [x] Docker execution
-- [x] Basic tools
-- [x] Chat interface
-
-### Phase 2
-- [ ] Self-healing system
-- [ ] Vector memory
-- [ ] Advanced workflows
-- [ ] Multi-agent collaboration
-
-### Phase 3
-- [ ] Kubernetes support
-- [ ] Distributed execution
-- [ ] Plugin marketplace
-- [ ] Enterprise features
-
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines.
+Expected resource usage:
+- Idle: ~2GB RAM, <10% CPU
+- Active healing: ~6GB RAM, 30-60% CPU
+- Peak (Ollama inference): ~8GB RAM, 80% CPU
 
 ## License
 
-MIT License
-
-## Documentation
-
-- [PRD](./PRD.md) - Product Requirements
-- [TRD](./TRD.md) - Technical Requirements
-- [Architecture](./Project_Architecture.md) - System Architecture
-- [ERD](./ERD.md) - Database Schema
-- [Agent Skills](./Agent_Skills.md) - Agent Capabilities
-
-## Support
-
-- GitHub Issues: https://github.com/Hisyam-Dzaki/New-Auto-Self-Healing/issues
-- Documentation: Coming soon
-
----
-
-Built with ❤️ for autonomous software development
+MIT
