@@ -3,7 +3,7 @@ import time
 import signal
 import sys
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
 from .redis_queue import RedisQueue, QueueType
 from .log_analyzer import LogAnalyzer
 from .resource_monitor import ResourceMonitor
