@@ -1,0 +1,81 @@
+agent:
+  default_provider: openai
+  default_model: gpt-4
+  max_retries: 3
+  timeout: 300
+
+docker:
+  cpu_limit: 2
+  memory_limit: 4g
+  execution_timeout: 600
+  
+security:
+  allowed_commands:
+    - git
+    - npm
+    - node
+    - python
+    - pip
+    - docker
+    - ls
+    - cat
+    - echo
+  
+  blocked_patterns:
+    - "rm -rf /"
+    - "shutdown"
+    - "reboot"
+    - "mkfs"
+    - "dd if="
+  
+  filesystem_root: /projects
+
+workflows:
+  build-app:
+    planning:
+      provider: 9router
+      model: anthropic/claude-3.5-sonnet
+    coding:
+      provider: 9router
+      model: deepseek/deepseek-coder
+    summarization:
+      provider: 9router
+      model: openai/gpt-4
+  
+  fix-bug:
+    planning:
+      provider: 9router
+      model: openai/gpt-4
+    coding:
+      provider: 9router
+      model: anthropic/claude-3-sonnet
+    summarization:
+      provider: 9router
+      model: openai/gpt-3.5-turbo
+  
+  refactor:
+    planning:
+      provider: 9router
+      model: anthropic/claude-3.5-sonnet
+    coding:
+      provider: 9router
+      model: openai/gpt-4
+    summarization:
+      provider: 9router
+      model: openai/gpt-3.5-turbo
+  
+  analyze-logs:
+    planning:
+      provider: 9router
+      model: google/gemini-pro
+    coding:
+      provider: 9router
+      model: anthropic/claude-3-sonnet
+    summarization:
+      provider: 9router
+      model: openai/gpt-3.5-turbo
+
+observability:
+  log_level: INFO
+  metrics_enabled: true
+  token_tracking: true
