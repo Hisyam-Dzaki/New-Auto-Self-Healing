@@ -170,3 +170,141 @@ async def analyze_logs(logs: str):
         "filtered_logs": filtered,
         "error_context": context
     }
+
+class ReceiveLogRequest(BaseModel):
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    logs: str
+    source: str = "external"
+    metadata: Optional[Dict[str, Any]] = None
+
+healing_history = []
+
+@router.post("/heal/receive")
+async def receive_external_logs(request: ReceiveLogRequest):
+    """Receive logs from external sources (VPS, webhooks, etc.)"""
+    from ..worker.log_analyzer import LogAnalyzer
+    
+    task_id = f"heal_{int(time.time())}_{hash(request.logs) % 10000}"
+    
+    project_id = request.project_id
+    project_name = request.project_name
+    
+    if not project_id and project_name:
+        from . import projects
+        for p in projects.projects_db:
+            if p.get("name", "").lower() == project_name.lower():
+                project_id = p["id"]
+                break
+    
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Project not found. Please specify project_id or project_name")
+    
+    from ..worker.redis_queue import RedisQueue
+    queue = RedisQueue()
+    
+    analyzer = LogAnalyzer()
+    classification = analyzer.classify(request.logs)
+    context = analyzer.extract_error_context(request.logs)
+    
+    task = {
+        "type": "heal_project",
+        "task_id": task_id,
+        "project_id": project_id,
+        "project_name": project_name or "Unknown",
+        "logs": request.logs,
+        "classification": classification,
+        "error_context": context,
+        "source": request.source,
+        "metadata": request.metadata,
+        "triggered_at": time.time(),
+        "status": "pending"
+    }
+    
+    queue.push_task(task)
+    
+    healing_record = {
+        "task_id": task_id,
+        "project_id": project_id,
+        "project_name": project_name,
+        "classification": classification,
+        "source": request.source,
+        "timestamp": time.time(),
+        "status": "queued"
+    }
+    healing_history.append(healing_record)
+    
+    return {
+        "task_id": task_id,
+        "status": "queued",
+        "classification": classification,
+        "message": f"Healing task queued for project: {project_name or project_id}"
+    }
+
+@router.get("/heal/history")
+async def get_healing_history(limit: int = 50):
+    """Get healing history"""
+    return {
+        "history": healing_history[-limit:],
+        "total": len(healing_history)
+    }
+
+@router.get("/heal/history/{task_id}")
+async def get_healing_task_detail(task_id: str):
+    """Get detailed healing task information"""
+    for record in healing_history:
+        if record["task_id"] == task_id:
+            return record
+    
+    from ..worker.redis_queue import RedisQueue
+    queue = RedisQueue()
+    state = queue.get_state(f"task:{task_id}")
+    
+    if state:
+        return state
+    
+    raise HTTPException(status_code=404, detail="Task not found")
+
+@router.post("/heal/manual/{project_id}")
+async def trigger_manual_healing(project_id: str, logs: str):
+    """Manually trigger healing for a project with logs"""
+    from ..worker.log_analyzer import LogAnalyzer
+    from ..worker.redis_queue import RedisQueue
+    
+    task_id = f"manual_{int(time.time())}"
+    
+    analyzer = LogAnalyzer()
+    classification = analyzer.classify(logs)
+    context = analyzer.extract_error_context(logs)
+    
+    queue = RedisQueue()
+    
+    task = {
+        "type": "heal_project",
+        "task_id": task_id,
+        "project_id": project_id,
+        "logs": logs,
+        "classification": classification,
+        "error_context": context,
+        "source": "manual",
+        "triggered_at": time.time(),
+        "status": "pending"
+    }
+    
+    queue.push_task(task)
+    
+    healing_record = {
+        "task_id": task_id,
+        "project_id": project_id,
+        "classification": classification,
+        "source": "manual",
+        "timestamp": time.time(),
+        "status": "queued"
+    }
+    healing_history.append(healing_record)
+    
+    return {
+        "task_id": task_id,
+        "status": "queued",
+        "classification": classification
+    }

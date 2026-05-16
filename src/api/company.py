@@ -6,7 +6,7 @@ from ..company.manager import company_manager
 from ..company.task_queue import task_queue, TaskPriority, TaskStatus
 
 
-router = APIRouter(prefix="/api/company", tags=["company"])
+router = APIRouter(prefix="/company", tags=["company"])
 
 
 class AddAgentRequest(BaseModel):

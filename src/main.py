@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import chat, projects, containers, files, healing, company
+from src.api import chat, projects, containers, files, healing, company, github
 import uvicorn
 
 app = FastAPI(title="AgentForge API - AI Company Simulation", version="1.0.0")
@@ -19,6 +19,7 @@ app.include_router(containers.router, prefix="/api", tags=["containers"])
 app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(healing.router, prefix="/api", tags=["healing"])
 app.include_router(company.router, prefix="/api", tags=["company"])
+app.include_router(github.router, prefix="/api", tags=["github"])
 
 @app.get("/")
 async def root():

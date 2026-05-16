@@ -7,28 +7,28 @@ type Theme = 'dark' | 'light'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
-  const [mounted, setMounted] = useState(false)
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
+    setIsClient(true)
     const saved = localStorage.getItem('agentforge-theme') as Theme
     if (saved) setTheme(saved)
   }, [])
+
+  useEffect(() => {
+    if (isClient) {
+      document.documentElement.setAttribute('data-theme', theme)
+    }
+  }, [theme, isClient])
 
   const handleSetTheme = (newTheme: Theme) => {
     setTheme(newTheme)
     localStorage.setItem('agentforge-theme', newTheme)
   }
 
-  useEffect(() => {
-    if (mounted) {
-      document.documentElement.setAttribute('data-theme', theme)
-    }
-  }, [theme, mounted])
-
-  if (!mounted) return <div className="min-h-screen" style={{ background: '#111827' }}></div>
-
-  const isDark = theme === 'dark'
+  // Always render dark by default to match server
+  const currentTheme = isClient ? theme : 'dark'
+  const isDark = currentTheme === 'dark'
   
   const navItems = [
     { href: '/', icon: '📊', label: 'Dashboard' },
@@ -37,13 +37,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { href: '/tasks', icon: '📋', label: 'Tasks' },
     { href: '/hr', icon: '👥', label: 'HR' },
     { href: '/projects', icon: '📁', label: 'Projects' },
+    { href: '/budget', icon: '💰', label: 'Budget' },
+    { href: '/templates', icon: '📦', label: 'Templates' },
+    { href: '/self-healing', icon: '🩹', label: 'Healing' },
+    { href: '/github', icon: '🐙', label: 'GitHub' },
     { href: '/chat', icon: '💬', label: 'Chat' },
     { href: '/analytics', icon: '📈', label: 'Analytics' },
     { href: '/settings', icon: '⚙️', label: 'Settings' },
   ]
 
   return (
-    <div className="min-h-screen" style={{ background: isDark ? '#111827' : '#f9fafb' }}>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <div className="min-h-screen" style={{ background: isDark ? '#111827' : '#f9fafb' }}>
       <nav 
         className="fixed top-0 left-0 h-full w-20 flex flex-col items-center py-6 z-50"
         style={{ background: isDark ? '#1f2937' : '#ffffff', borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}
@@ -73,6 +79,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <main className="ml-20 p-6">
         {children}
       </main>
-    </div>
+      </div>
+      </body>
+    </html>
   )
 }

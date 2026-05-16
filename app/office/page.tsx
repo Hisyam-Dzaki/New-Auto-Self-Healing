@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { COMPANY_API } from '../lib/api'
+import { useState, useEffect, useRef } from 'react'
+import { useTheme } from '../hooks/useTheme'
 
 interface Agent {
   id: string
@@ -10,15 +10,62 @@ interface Agent {
   behavior: string
 }
 
-interface Department {
+interface OfficeRoom {
   id: string
   name: string
-  type: string
-  agent_count?: number
-  agents?: Agent[]
+  type: 'desk' | 'meeting' | 'lounge' | 'server' | 'kitchen' | 'ceo' | 'reception' | 'storage' | 'parking' | 'hallway'
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
 }
 
-const BEHAVIOR_COLORS: Record<string, string> = {
+interface AgentSprite {
+  id: string
+  name: string
+  x: number
+  y: number
+  targetX: number
+  targetY: number
+  department: string
+  behavior: string
+  currentRoom: string
+}
+
+const ROOMS: OfficeRoom[] = [
+  { id: 'reception', name: 'Reception', type: 'reception', x: 2, y: 8, width: 2, height: 2, color: '#f59e0b' },
+  { id: 'ceo', name: 'CEO Office', type: 'ceo', x: 0, y: 0, width: 2, height: 2, color: '#8b5cf6' },
+  { id: 'meeting1', name: 'Meeting Room A', type: 'meeting', x: 3, y: 0, width: 2, height: 2, color: '#3b82f6' },
+  { id: 'meeting2', name: 'Meeting Room B', type: 'meeting', x: 6, y: 0, width: 2, height: 2, color: '#06b6d4' },
+  { id: 'lounge', name: 'Lounge', type: 'lounge', x: 9, y: 2, width: 2, height: 2, color: '#10b981' },
+  { id: 'kitchen', name: 'Kitchen', type: 'kitchen', x: 9, y: 5, width: 2, height: 1, color: '#f97316' },
+  { id: 'server', name: 'Server Room', type: 'server', x: 0, y: 3, width: 1, height: 2, color: '#ef4444' },
+  { id: 'storage', name: 'Storage', type: 'storage', x: 0, y: 6, width: 1, height: 2, color: '#6b7280' },
+  { id: 'eng1', name: 'Engineering Desk 1', type: 'desk', x: 2, y: 3, width: 2, height: 1, color: '#3b82f6' },
+  { id: 'eng2', name: 'Engineering Desk 2', type: 'desk', x: 5, y: 3, width: 2, height: 1, color: '#3b82f6' },
+  { id: 'sales1', name: 'Sales Desk 1', type: 'desk', x: 2, y: 5, width: 2, height: 1, color: '#22c55e' },
+  { id: 'sales2', name: 'Sales Desk 2', type: 'desk', x: 5, y: 5, width: 2, height: 1, color: '#22c55e' },
+  { id: 'marketing', name: 'Marketing Desk', type: 'desk', x: 2, y: 7, width: 2, height: 1, color: '#f59e0b' },
+  { id: 'finance', name: 'Finance Desk', type: 'desk', x: 5, y: 7, width: 2, height: 1, color: '#8b5cf6' },
+  { id: 'hr', name: 'HR Desk', type: 'desk', x: 8, y: 8, width: 2, height: 1, color: '#ec4899' },
+  { id: 'parking', name: 'Parking', type: 'parking', x: 11, y: 7, width: 1, height: 3, color: '#374151' },
+]
+
+const DEPARTMENT_ROOM_MAP: Record<string, string> = {
+  engineering: 'eng1',
+  sales: 'sales1',
+  marketing: 'marketing',
+  finance: 'finance',
+  operations: 'eng2',
+  product: 'eng2',
+  support: 'sales2',
+  hr: 'hr',
+  legal: 'hr',
+  customer_service: 'sales2',
+}
+
+const STATUS_COLORS: Record<string, string> = {
   idle: '#6b7280',
   working: '#3b82f6',
   thinking: '#8b5cf6',
@@ -39,228 +86,459 @@ const BEHAVIOR_COLORS: Record<string, string> = {
   deploying: '#eab308',
 }
 
-const DEPARTMENT_POSITIONS: Record<string, { x: number; y: number }> = {
-  engineering: { x: 2, y: 2 },
-  sales: { x: 8, y: 2 },
-  marketing: { x: 2, y: 6 },
-  finance: { x: 8, y: 6 },
-  operations: { x: 5, y: 4 },
-  product: { x: 2, y: 10 },
-  support: { x: 8, y: 10 },
-  hr: { x: 5, y: 8 },
-  legal: { x: 5, y: 10 },
-  customer_service: { x: 5, y: 12 },
+function getStatusRoom(behavior: string): string {
+  if (['meeting', 'communicating'].includes(behavior)) return 'meeting1'
+  if (['break', 'idle'].includes(behavior)) return 'lounge'
+  return 'eng1'
 }
 
 export default function Office() {
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [theme, setTheme] = useState('dark')
-  const [selectedDept, setSelectedDept] = useState<string | null>(null)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [sprites, setSprites] = useState<AgentSprite[]>([])
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+  const [hoveredRoom, setHoveredRoom] = useState<string | null>(null)
   const [time, setTime] = useState(0)
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const svgRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
-    fetchDepartments()
+    fetchAgents()
     const interval = setInterval(() => {
       setTime(t => t + 1)
-      fetchDepartments()
-    }, 3000)
+      fetchAgents()
+    }, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  const fetchDepartments = async () => {
+  useEffect(() => {
+    if (agents.length > 0) {
+      updateSprites()
+    }
+  }, [agents, time])
+
+  const fetchAgents = async () => {
     try {
-      const data = await COMPANY_API.departments()
-      setDepartments((data as any).departments || [])
+      const res = await fetch('http://localhost:8888/api/company/agents')
+      const data = await res.json()
+      setAgents(data.agents || [])
     } catch (err) {
-      console.error('Failed to fetch departments:', err)
+      console.error('Failed to fetch agents:', err)
+      setAgents([])
     }
   }
 
-  const gridSize = 12
-  
+  const updateSprites = () => {
+    setSprites(prev => {
+      const newSprites = agents.map(agent => {
+        const existing = prev.find(s => s.id === agent.id)
+        const deptRoom = DEPARTMENT_ROOM_MAP[agent.department] || 'eng1'
+        const targetRoomId = getStatusRoom(agent.behavior)
+        const targetRoom = ROOMS.find(r => r.id === targetRoomId) || ROOMS.find(r => r.id === deptRoom) || ROOMS[0]
+        
+        let targetX = targetRoom.x + targetRoom.width / 2
+        let targetY = targetRoom.y + targetRoom.height / 2
+        
+        const roomAgents = agents.filter(a => a.department === agent.department)
+        const agentIndex = roomAgents.findIndex(a => a.id === agent.id)
+        targetX += (agentIndex % 3) * 0.3
+        targetY += Math.floor(agentIndex / 3) * 0.2
+        
+        if (existing) {
+          return {
+            ...existing,
+            targetX,
+            targetY,
+            behavior: agent.behavior,
+            currentRoom: targetRoomId,
+          }
+        }
+        
+        return {
+          id: agent.id,
+          name: agent.name,
+          x: targetX,
+          y: targetY,
+          targetX,
+          targetY,
+          department: agent.department,
+          behavior: agent.behavior,
+          currentRoom: targetRoomId,
+        }
+      })
+      
+      return newSprites.map(sprite => {
+        const dx = sprite.targetX - sprite.x
+        const dy = sprite.targetY - sprite.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        
+        if (dist > 0.05) {
+          return {
+            ...sprite,
+            x: sprite.x + dx * 0.03,
+            y: sprite.y + dy * 0.03,
+          }
+        }
+        return sprite
+      })
+    })
+  }
+
+  const toIsometric = (x: number, y: number) => {
+    const isoX = (x - y) * 40 + 300
+    const isoY = (x + y) * 25 + 80
+    return { x: isoX, y: isoY }
+  }
+
+  const getRoomCoords = (room: OfficeRoom) => {
+    const topLeft = toIsometric(room.x, room.y)
+    const topRight = toIsometric(room.x + room.width, room.y)
+    const bottomLeft = toIsometric(room.x, room.y + room.height)
+    const bottomRight = toIsometric(room.x + room.width, room.y + room.height)
+    return { topLeft, topRight, bottomLeft, bottomRight }
+  }
+
+  const getAgentPosition = (sprite: AgentSprite) => {
+    return toIsometric(sprite.x, sprite.y)
+  }
+
   return (
-    <div className="space-y-6">
-      <header className="flex justify-between items-center">
+    <div className="space-y-4">
+      <header className="flex justify-between items-center px-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Pixel Office</h1>
-          <p className="text-gray-400">Real-time agent visualization</p>
+          <h1 className="text-2xl font-bold" style={{ color: isDark ? '#fff' : '#111827' }}>Office</h1>
+          <p style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Isometric office visualization</p>
         </div>
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <div className="w-3 h-3 rounded-full bg-gray-500" /> Idle
-            <div className="w-3 h-3 rounded-full bg-blue-500" /> Working
-            <div className="w-3 h-3 rounded-full bg-purple-500" /> Thinking
-            <div className="w-3 h-3 rounded-full bg-yellow-500" /> Meeting
-            <div className="w-3 h-3 rounded-full bg-red-500" /> Error
-          </div>
+        <div className="flex items-center gap-4 text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-500" /> Idle</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Working</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500" /> Meeting</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500" /> Break</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> Error</span>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
-          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 overflow-hidden">
-            <div 
-              className="relative"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${gridSize}, 1fr)`,
-                gap: '4px',
-                aspectRatio: '16/10',
-              }}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 px-4">
+        <div className="lg:col-span-4">
+          <div 
+            className="relative rounded-xl overflow-hidden"
+            style={{ 
+              background: isDark 
+                ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+                : 'linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%)',
+              minHeight: '500px',
+            }}
+          >
+            <svg 
+              ref={svgRef}
+              viewBox="0 0 800 500" 
+              className="w-full h-full"
+              style={{ minHeight: '500px' }}
             >
-              {Array.from({ length: gridSize * gridSize }).map((_, i) => {
-                const x = i % gridSize
-                const y = Math.floor(i / gridSize)
-                const dept = Object.entries(DEPARTMENT_POSITIONS).find(([_, pos]) => pos.x === x && pos.y === y)
+              <defs>
+                <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="2" dy="4" stdDeviation="3" floodOpacity="0.3"/>
+                </filter>
+                <linearGradient id="floorLight" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1"/>
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05"/>
+                </linearGradient>
+              </defs>
+
+              {ROOMS.map(room => {
+                const { topLeft, topRight, bottomLeft, bottomRight } = getRoomCoords(room)
+                const isHovered = hoveredRoom === room.id
+                const roomAgents = sprites.filter(s => s.currentRoom === room.id)
                 
                 return (
-                  <div
-                    key={i}
-                    className={`
-                      rounded-lg border transition-all duration-300
-                      ${dept ? 'border-2' : 'border border-gray-700'}
-                    `}
-                    style={{
-                      backgroundColor: dept 
-                        ? getDepartmentColor(dept[0], theme)
-                        : (x + y) % 2 === 0 ? '#1f2937' : '#111827',
-                    }}
+                  <g 
+                    key={room.id}
+                    onMouseEnter={() => setHoveredRoom(room.id)}
+                    onMouseLeave={() => setHoveredRoom(null)}
+                    style={{ cursor: 'pointer' }}
                   >
-                    {dept && (
-                      <DepartmentCell 
-                        deptType={dept[0]} 
-                        deptName={getDeptName(dept[0])}
-                        agents={departments.find(d => d.type === dept[0])?.agents || []}
-                        selected={selectedDept === dept[0]}
-                        onClick={() => setSelectedDept(selectedDept === dept[0] ? null : dept[0])}
-                        time={time}
-                      />
+                    <polygon
+                      points={`${bottomLeft.x},${bottomLeft.y} ${bottomRight.x},${bottomRight.y} ${topRight.x},${topRight.y} ${topLeft.x},${topLeft.y}`}
+                      fill={room.color}
+                      fillOpacity={isHovered ? 0.4 : 0.25}
+                      stroke={isHovered ? room.color : 'rgba(255,255,255,0.1)'}
+                      strokeWidth={isHovered ? 2 : 1}
+                      filter="url(#shadow)"
+                    />
+                    
+                    <polygon
+                      points={`${topLeft.x},${topLeft.y} ${topRight.x},${topRight.y} ${topRight.x},${topRight.y + 8} ${topLeft.x},${topLeft.x + 8}`}
+                      fill={room.color}
+                      fillOpacity={0.6}
+                    />
+                    
+                    <polygon
+                      points={`${topRight.x},${topRight.y} ${bottomRight.x},${bottomRight.y} ${bottomRight.x},${bottomRight.y + 8} ${topRight.x},${topRight.y + 8}`}
+                      fill={room.color}
+                      fillOpacity={0.8}
+                    />
+                    
+                    <text
+                      x={(topLeft.x + bottomRight.x) / 2}
+                      y={(topLeft.y + bottomRight.y) / 2 + 5}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize="10"
+                      fontWeight="bold"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {room.name}
+                    </text>
+                    
+                    {roomAgents.length > 0 && (
+                      <text
+                        x={(topLeft.x + bottomRight.x) / 2}
+                        y={(topLeft.y + bottomRight.y) / 2 + 20}
+                        textAnchor="middle"
+                        fill="rgba(255,255,255,0.7)"
+                        fontSize="9"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {roomAgents.length} 🤖
+                      </text>
                     )}
+                  </g>
+                )
+              })}
+              
+              {sprites.map(sprite => {
+                const pos = getAgentPosition(sprite)
+                const color = STATUS_COLORS[sprite.behavior] || '#6b7280'
+                const isSelected = selectedAgent === sprite.id
+                
+                return (
+                  <g 
+                    key={sprite.id}
+                    onClick={() => setSelectedAgent(isSelected ? null : sprite.id)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={isSelected ? 18 : 14}
+                      fill={color}
+                      fillOpacity={0.3}
+                      className="transition-all"
+                    />
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={12}
+                      fill={color}
+                      stroke="white"
+                      strokeWidth={isSelected ? 3 : 2}
+                      filter="url(#shadow)"
+                    />
+                    <text
+                      x={pos.x}
+                      y={pos.y + 4}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize="10"
+                      fontWeight="bold"
+                    >
+                      🤖
+                    </text>
+                    
+                    {isSelected && (
+                      <g>
+                        <rect
+                          x={pos.x + 15}
+                          y={pos.y - 25}
+                          width="100"
+                          height="35"
+                          rx="4"
+                          fill="white"
+                          fillOpacity={0.95}
+                          filter="url(#shadow)"
+                        />
+                        <text
+                          x={pos.x + 20}
+                          y={pos.y - 10}
+                          fill="#1f2937"
+                          fontSize="8"
+                          fontWeight="bold"
+                        >
+                          {sprite.name.length > 15 ? sprite.name.slice(0, 15) + '...' : sprite.name}
+                        </text>
+                        <text
+                          x={pos.x + 20}
+                          y={pos.y}
+                          fill="#6b7280"
+                          fontSize="7"
+                        >
+                          {sprite.department} • {sprite.behavior}
+                        </text>
+                      </g>
+                    )}
+                    
+                    {['working', 'debugging', 'testing'].includes(sprite.behavior) && (
+                      <g>
+                        <circle cx={pos.x + 10} cy={pos.y - 12} r="4" fill="#3b82f6">
+                          <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite"/>
+                        </circle>
+                      </g>
+                    )}
+                    
+                    {sprite.behavior === 'error' && (
+                      <g>
+                        <circle cx={pos.x - 10} cy={pos.y - 12} r="4" fill="#ef4444">
+                          <animate attributeName="opacity" values="1;0.3;1" dur="0.5s" repeatCount="indefinite"/>
+                        </circle>
+                      </g>
+                    )}
+                  </g>
+                )
+              })}
+              
+              <text x="400" y="480" textAnchor="middle" fill={isDark ? '#6b7280' : '#9ca3af'} fontSize="12">
+                {agents.length} Agents Online
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="glass-card">
+            <h3 className="font-semibold mb-3" style={{ color: isDark ? '#fff' : '#111827' }}>Rooms</h3>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {ROOMS.map(room => {
+                const roomAgents = sprites.filter(s => s.currentRoom === room.id)
+                return (
+                  <div
+                    key={room.id}
+                    className="flex items-center justify-between p-2 rounded-lg"
+                    style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}
+                    onMouseEnter={() => setHoveredRoom(room.id)}
+                    onMouseLeave={() => setHoveredRoom(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded" style={{ background: room.color }} />
+                      <span className="text-sm" style={{ color: isDark ? '#d1d5db' : '#4b5563' }}>
+                        {room.name}
+                      </span>
+                    </div>
+                    <span className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                      {roomAgents.length}
+                    </span>
                   </div>
                 )
               })}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-            <h3 className="font-semibold text-white mb-3">Departments</h3>
-            <div className="space-y-2">
-              {departments.map(dept => (
-                <button
-                  key={dept.id}
-                  onClick={() => setSelectedDept(selectedDept === dept.type ? null : dept.type)}
-                  className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${
-                    selectedDept === dept.type ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
-                  }`}
-                >
-                  <span className="text-white text-sm">{dept.name}</span>
-                  <span className="text-gray-400 text-xs">{dept.agent_count} agents</span>
-                </button>
-              ))}
+          <div className="glass-card">
+            <h3 className="font-semibold mb-3" style={{ color: isDark ? '#fff' : '#111827' }}>Agents ({agents.length})</h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {agents.map(agent => {
+                const color = STATUS_COLORS[agent.behavior] || '#6b7280'
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
+                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all ${
+                      selectedAgent === agent.id ? 'ring-2 ring-blue-500' : ''
+                    }`}
+                    style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: isDark ? '#fff' : '#111827' }}>
+                        {agent.name}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                        {agent.department}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+              {agents.length === 0 && (
+                <p className="text-center py-4 text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                  No agents
+                </p>
+              )}
             </div>
           </div>
 
-          {selectedDept && (
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <h3 className="font-semibold text-white mb-3">
-                {getDeptName(selectedDept)} Agents
-              </h3>
-              <div className="space-y-2">
-                {departments.find(d => d.type === selectedDept)?.agents.map(agent => (
-                  <div key={agent.id} className="flex items-center gap-2 p-2 bg-gray-700 rounded-lg">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: BEHAVIOR_COLORS[agent.behavior] || '#6b7280' }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm truncate">{agent.name}</p>
-                      <p className="text-gray-400 text-xs">{agent.behavior}</p>
+          {selectedAgent && (
+            <div className="glass-card">
+              <h3 className="font-semibold mb-3" style={{ color: isDark ? '#fff' : '#111827' }}>Details</h3>
+              {(() => {
+                const agent = agents.find(a => a.id === selectedAgent)
+                if (!agent) return null
+                const currentRoom = ROOMS.find(r => r.id === sprites.find(s => s.id === selectedAgent)?.currentRoom)
+                return (
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Name</span>
+                      <span style={{ color: isDark ? '#fff' : '#111827' }}>{agent.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Department</span>
+                      <span style={{ color: isDark ? '#fff' : '#111827' }}>{agent.department}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Status</span>
+                      <span 
+                        className="px-2 py-0.5 rounded text-xs"
+                        style={{ 
+                          background: `${STATUS_COLORS[agent.status]}20`,
+                          color: STATUS_COLORS[agent.status]
+                        }}
+                      >
+                        {agent.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Behavior</span>
+                      <span style={{ color: isDark ? '#fff' : '#111827' }}>{agent.behavior}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Location</span>
+                      <span style={{ color: isDark ? '#fff' : '#111827' }}>{currentRoom?.name || 'Unknown'}</span>
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+              })()}
             </div>
           )}
         </div>
       </div>
+
+      <div className="px-4 pb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: isDark ? '#fff' : '#111827' }}>{agents.length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Total Agents</div>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: '#3b82f6' }}>{sprites.filter(s => s.behavior === 'working').length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Working</div>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: '#6b7280' }}>{sprites.filter(s => s.behavior === 'idle').length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Idle</div>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: '#f59e0b' }}>{sprites.filter(s => s.behavior === 'meeting').length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>In Meeting</div>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: '#10b981' }}>{sprites.filter(s => s.behavior === 'break').length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>On Break</div>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <div className="text-2xl font-bold" style={{ color: '#ef4444' }}>{sprites.filter(s => s.behavior === 'error').length}</div>
+            <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Error</div>
+          </div>
+        </div>
+      </div>
     </div>
   )
-}
-
-function DepartmentCell({ 
-  deptType, 
-  deptName, 
-  agents, 
-  selected, 
-  onClick,
-  time 
-}: { 
-  deptType: string
-  deptName: string
-  agents: Agent[]
-  selected: boolean
-  onClick: () => void
-  time: number
-}) {
-  const activeAgents = agents.filter(a => a.status !== 'idle')
-  
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full h-full p-1 flex flex-col items-center justify-center transition-all ${
-        selected ? 'ring-2 ring-white' : ''
-      }`}
-    >
-      <span className="text-xs">{deptName}</span>
-      <div className="flex gap-1 mt-1">
-        {agents.slice(0, 3).map((agent, i) => (
-          <div
-            key={agent.id}
-            className="w-2 h-2 rounded-full animate-pulse"
-            style={{
-              backgroundColor: BEHAVIOR_COLORS[agent.behavior] || '#6b7280',
-              animationDelay: `${i * 0.2}s`,
-            }}
-          />
-        ))}
-        {agents.length > 3 && (
-          <span className="text-xs text-gray-400">+{agents.length - 3}</span>
-        )}
-      </div>
-    </button>
-  )
-}
-
-function getDepartmentColor(deptType: string, theme: string): string {
-  const colors: Record<string, string> = {
-    engineering: '#1e3a5f',
-    sales: '#1e3d1e',
-    marketing: '#3d1e3d',
-    finance: '#3d3d1e',
-    operations: '#1e3d3d',
-    product: '#3d1e1e',
-    support: '#1e2d3d',
-    hr: '#2d1e3d',
-    legal: '#3d2d1e',
-    customer_service: '#1e3d2d',
-  }
-  return colors[deptType] || '#1f2937'
-}
-
-function getDeptName(deptType: string): string {
-  const names: Record<string, string> = {
-    engineering: 'Engineering',
-    sales: 'Sales',
-    marketing: 'Marketing',
-    finance: 'Finance',
-    operations: 'Operations',
-    product: 'Product',
-    support: 'Support',
-    hr: 'HR',
-    legal: 'Legal',
-    customer_service: 'CS',
-  }
-  return names[deptType] || deptType
 }
