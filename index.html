@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentForge Inc. - AI Company Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --bg-primary: #111827;
+        --bg-secondary: #1f2937;
+        --text-primary: #ffffff;
+        --text-secondary: #9ca3af;
+        --border-color: #374151;
+      }
+      @media (light) {
+        :root {
+          --bg-primary: #f9fafb;
+          --bg-secondary: #ffffff;
+          --text-primary: #111827;
+          --text-secondary: #6b7280;
+          --border-color: #e5e7eb;
+        }
+      }
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+      }
+      .glass-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1rem;
+      }
+      .input-field {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+      }
+      .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
