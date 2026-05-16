@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Agent {
   id: string
@@ -13,7 +14,8 @@ interface Department {
   id: string
   name: string
   type: string
-  agents: Agent[]
+  agent_count?: number
+  agents?: Agent[]
 }
 
 const BEHAVIOR_COLORS: Record<string, string> = {
@@ -67,9 +69,8 @@ export default function Office() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/company/departments')
-      const data = await res.json()
-      setDepartments(data.departments)
+      const data = await COMPANY_API.departments()
+      setDepartments((data as any).departments || [])
     } catch (err) {
       console.error('Failed to fetch departments:', err)
     }

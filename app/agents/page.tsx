@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Agent {
   id: string
@@ -33,9 +34,8 @@ export default function AgentsPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/company/agents')
-      const data = await res.json()
-      setAgents(data.agents)
+      const data = await COMPANY_API.agents()
+      setAgents((data as any).agents || [])
     } catch (err) {
       console.error('Failed to fetch agents:', err)
     } finally {

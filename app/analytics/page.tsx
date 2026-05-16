@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Stats {
   total: number
@@ -30,21 +31,20 @@ export default function AnalyticsPage() {
 
   const fetchData = async () => {
     try {
-      const [taskRes, agentRes, compRes] = await Promise.all([
-        fetch('http://localhost:8000/api/company/tasks/stats'),
-        fetch('http://localhost:8000/api/company/agents'),
-        fetch('http://localhost:8000/api/company/stats')
+      const [taskData, agentData, compData] = await Promise.all([
+        COMPANY_API.taskStats(),
+        COMPANY_API.agents(),
+        COMPANY_API.stats()
       ])
-      setTaskStats(await taskRes.json())
-      const agentData = await agentRes.json()
-      setAgents(agentData.agents.map((a: any) => ({
+      setTaskStats(taskData as Stats)
+      setAgents(((agentData as any).agents || []).map((a: any) => ({
         name: a.name,
         department: a.department,
         tasks_completed: a.tasks_completed,
         tasks_failed: a.tasks_failed,
         tokens_used: a.tokens_used
       })))
-      setCompanyStats(await compRes.json())
+      setCompanyStats(compData)
     } catch (err) {
       console.error('Failed to fetch analytics:', err)
     } finally {

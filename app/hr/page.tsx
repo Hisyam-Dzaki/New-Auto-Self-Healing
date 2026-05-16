@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Department {
   id: string
@@ -52,14 +53,12 @@ export default function HRPage() {
 
   const fetchData = async () => {
     try {
-      const [deptRes, agentsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/company/departments'),
-        fetch('http://localhost:8000/api/company/agents')
+      const [deptData, agentsData] = await Promise.all([
+        COMPANY_API.departments(),
+        COMPANY_API.agents()
       ])
-      const deptData = await deptRes.json()
-      const agentsData = await agentsRes.json()
-      setDepartments(deptData.departments)
-      setAgents(agentsData.agents)
+      setDepartments((deptData as any).departments || [])
+      setAgents((agentsData as any).agents || [])
     } catch (err) {
       console.error('Failed to fetch data:', err)
     } finally {
@@ -70,11 +69,7 @@ export default function HRPage() {
   const addAgent = async () => {
     if (!newAgent.name || !newAgent.role) return
     try {
-      await fetch('http://localhost:8000/api/company/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAgent)
-      })
+      await COMPANY_API.addAgent(newAgent)
       setShowAddModal(false)
       setNewAgent({ name: '', role: '', department: 'engineering', skills: [] })
       fetchData()
@@ -86,9 +81,7 @@ export default function HRPage() {
   const removeAgent = async () => {
     if (!agentToRemove) return
     try {
-      await fetch(`http://localhost:8000/api/company/agents/${agentToRemove.id}`, {
-        method: 'DELETE'
-      })
+      await COMPANY_API.removeAgent(agentToRemove.id)
       setShowRemoveModal(false)
       setAgentToRemove(null)
       fetchData()
@@ -99,11 +92,7 @@ export default function HRPage() {
 
   const moveAgent = async (agentId: string, newDept: string) => {
     try {
-      await fetch(`http://localhost:8000/api/company/agents/${agentId}/move`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ new_department: newDept })
-      })
+      await COMPANY_API.moveAgent(agentId, newDept)
       fetchData()
     } catch (err) {
       console.error('Failed to move agent:', err)

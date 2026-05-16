@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Task {
   id: string
@@ -33,10 +34,9 @@ export default function TasksPage() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/company/tasks')
-      const data = await res.json()
-      setTasks(data.tasks)
-      setStats(data.stats)
+      const data = await COMPANY_API.tasks()
+      setTasks((data as any).tasks || [])
+      setStats((data as any).stats)
     } catch (err) {
       console.error('Failed to fetch tasks:', err)
     } finally {
@@ -46,11 +46,7 @@ export default function TasksPage() {
 
   const createTask = async () => {
     try {
-      await fetch('http://localhost:8000/api/company/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask)
-      })
+      await COMPANY_API.createTask(newTask)
       setShowCreateModal(false)
       setNewTask({ title: '', description: '', department: 'engineering', priority: 'medium' })
       fetchTasks()
@@ -61,7 +57,7 @@ export default function TasksPage() {
 
   const deleteTask = async (taskId: string) => {
     try {
-      await fetch(`http://localhost:8000/api/company/tasks/${taskId}`, { method: 'DELETE' })
+      await COMPANY_API.deleteTask(taskId)
       fetchTasks()
     } catch (err) {
       console.error('Failed to delete task:', err)

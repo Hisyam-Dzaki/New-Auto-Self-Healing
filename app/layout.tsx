@@ -1,50 +1,78 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import Link from 'next/link'
 import './globals.css'
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const [theme, setTheme] = useState('dark')
+type Theme = 'dark' | 'light'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>('dark')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    const saved = localStorage.getItem('agentforge-theme') as Theme
+    if (saved) setTheme(saved)
+  }, [])
+
+  const handleSetTheme = (newTheme: Theme) => {
+    setTheme(newTheme)
+    localStorage.setItem('agentforge-theme', newTheme)
+  }
+
+  useEffect(() => {
+    if (mounted) {
+      document.documentElement.setAttribute('data-theme', theme)
+    }
+  }, [theme, mounted])
+
+  if (!mounted) return <div className="min-h-screen" style={{ background: '#111827' }}></div>
+
+  const isDark = theme === 'dark'
+  
+  const navItems = [
+    { href: '/', icon: '📊', label: 'Dashboard' },
+    { href: '/office', icon: '🏢', label: 'Office' },
+    { href: '/agents', icon: '🤖', label: 'Agents' },
+    { href: '/tasks', icon: '📋', label: 'Tasks' },
+    { href: '/hr', icon: '👥', label: 'HR' },
+    { href: '/projects', icon: '📁', label: 'Projects' },
+    { href: '/chat', icon: '💬', label: 'Chat' },
+    { href: '/analytics', icon: '📈', label: 'Analytics' },
+    { href: '/settings', icon: '⚙️', label: 'Settings' },
+  ]
 
   return (
-    <html lang="en" data-theme={theme}>
-      <body className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'}`}>
-        <nav className={`fixed top-0 left-0 h-full w-20 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border-r ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex flex-col items-center py-6 z-50`}>
-          <div className="text-2xl font-bold text-blue-500 mb-8">AF</div>
-          
-          <NavLink href="/" icon="📊" label="Dashboard" theme={theme} />
-          <NavLink href="/office" icon="🏢" label="Office" theme={theme} />
-          <NavLink href="/agents" icon="🤖" label="Agents" theme={theme} />
-          <NavLink href="/tasks" icon="📋" label="Tasks" theme={theme} />
-          <NavLink href="/hr" icon="👥" label="HR" theme={theme} />
-          <NavLink href="/analytics" icon="📈" label="Analytics" theme={theme} />
-          <NavLink href="/settings" icon="⚙️" label="Settings" theme={theme} />
-          
-          <button 
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="mt-auto p-2 rounded-lg hover:bg-gray-700"
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-        </nav>
+    <div className="min-h-screen" style={{ background: isDark ? '#111827' : '#f9fafb' }}>
+      <nav 
+        className="fixed top-0 left-0 h-full w-20 flex flex-col items-center py-6 z-50"
+        style={{ background: isDark ? '#1f2937' : '#ffffff', borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}
+      >
+        <div className="text-2xl font-bold text-blue-500 mb-8">AF</div>
         
-        <main className="ml-20 p-6">
-          {children}
-        </main>
-      </body>
-    </html>
-  )
-}
-
-function NavLink({ href, icon, label, theme }: { href: string; icon: string; label: string; theme: string }) {
-  return (
-    <Link href={href} className="flex flex-col items-center py-3 px-2 hover:bg-gray-700 rounded-lg mb-1 transition-colors">
-      <span className="text-xl">{icon}</span>
-      <span className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{label}</span>
-    </Link>
+        {navItems.map(item => (
+          <Link 
+            key={item.href} 
+            href={item.href}
+            className="flex flex-col items-center py-3 px-2 rounded-lg mb-1 transition-colors"
+          >
+            <span className="text-xl">{item.icon}</span>
+            <span className="text-xs mt-1" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>{item.label}</span>
+          </Link>
+        ))}
+        
+        <button 
+          onClick={() => handleSetTheme(isDark ? 'light' : 'dark')}
+          className="mt-auto p-2 rounded-lg"
+          style={{ background: isDark ? '#374151' : '#f3f4f6' }}
+        >
+          {isDark ? '☀️' : '🌙'}
+        </button>
+      </nav>
+      
+      <main className="ml-20 p-6">
+        {children}
+      </main>
+    </div>
   )
 }

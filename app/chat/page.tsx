@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { COMPANY_API } from '../lib/api'
 
 interface Agent {
   id: string
@@ -39,11 +40,11 @@ export default function ChatPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/company/agents')
-      const data = await res.json()
-      setAgents(data.agents)
-      if (data.agents.length > 0 && !selectedAgent) {
-        setSelectedAgent(data.agents[0])
+      const data = await COMPANY_API.agents()
+      const agentList = (data as any).agents || []
+      setAgents(agentList)
+      if (agentList.length > 0 && !selectedAgent) {
+        setSelectedAgent(agentList[0])
       }
     } catch (err) {
       console.error('Failed to fetch agents:', err)
