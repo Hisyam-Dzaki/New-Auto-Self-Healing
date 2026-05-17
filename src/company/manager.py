@@ -93,6 +93,19 @@ class CompanyManager:
     def get_agent(self, agent_id: str) -> Optional[Agent]:
         return self.company.get_agent(agent_id)
 
+    def update_agent(self, agent_id: str, role: str = None, skills: List[str] = None, behavior: AgentBehavior = None) -> bool:
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return False
+        if role:
+            agent.role = role
+        if skills:
+            agent.skills = skills
+        if behavior:
+            agent.behavior = behavior
+        self._save_to_redis()
+        return True
+
     def update_agent_status(self, agent_id: str, status: AgentStatus, behavior: AgentBehavior = None) -> bool:
         agent = self.get_agent(agent_id)
         if agent:

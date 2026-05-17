@@ -40,6 +40,12 @@ class UpdateAgentStatusRequest(BaseModel):
     behavior: Optional[AgentBehavior] = None
 
 
+class UpdateAgentRequest(BaseModel):
+    role: Optional[str] = None
+    skills: Optional[List[str]] = None
+    behavior: Optional[str] = None
+
+
 @router.get("/stats")
 async def get_company_stats():
     return company_manager.get_company_stats()
@@ -139,6 +145,18 @@ async def remove_agent(agent_id: str):
     if not company_manager.remove_agent(agent_id):
         raise HTTPException(status_code=404, detail="Agent not found")
     return {"message": "Agent removed successfully"}
+
+
+@router.put("/agents/{agent_id}")
+async def update_agent(agent_id: str, request: UpdateAgentRequest):
+    behavior_enum = None
+    if request.behavior and request.behavior in [b.value for b in AgentBehavior]:
+        behavior_enum = AgentBehavior(request.behavior)
+    
+    if not company_manager.update_agent(agent_id, request.role, request.skills, behavior_enum):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    return company_manager.get_agent(agent_id)
 
 
 @router.put("/agents/{agent_id}/move")

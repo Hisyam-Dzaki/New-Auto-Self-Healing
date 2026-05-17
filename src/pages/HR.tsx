@@ -1,33 +1,38 @@
 import { useState, useEffect } from 'react'
 
-interface Employee {
+interface Agent {
   id: string
   name: string
   role: string
   department: string
-  email: string
-  hire_date: string
-  salary: number
+  status: string
+  behavior: string
+  skills: string[]
+  tasks_completed: number
+  tasks_failed: number
+  tokens_used: number
+  last_active: string
 }
 
 interface Department {
   id: string
   name: string
   type: string
-  budget: number
+  description: string
+  agent_count: number
+  active_tasks: number
+  completed_tasks: number
 }
 
 const API_BASE = 'http://localhost:8888/api'
 
 export default function HR() {
-  const [employees, setEmployees] = useState<Employee[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const [theme, setTheme] = useState('dark')
-  const [showAddEmployee, setShowAddEmployee] = useState(false)
-  const [showAddDept, setShowAddDept] = useState(false)
-  const [newEmployee, setNewEmployee] = useState({ name: '', role: '', department: '', email: '', salary: 0 })
-  const [newDept, setNewDept] = useState({ name: '', type: '', budget: 0 })
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [newAgent, setNewAgent] = useState({ name: '', role: '', department: '' })
 
   useEffect(() => {
     const saved = localStorage.getItem('agentforge-theme')
@@ -37,13 +42,13 @@ export default function HR() {
 
   const fetchData = async () => {
     try {
-      const [empRes, deptRes] = await Promise.all([
-        fetch(`${API_BASE}/company/employees`),
+      const [agentsRes, deptRes] = await Promise.all([
+        fetch(`${API_BASE}/company/agents`),
         fetch(`${API_BASE}/company/departments`)
       ])
-      const empData = await empRes.json()
+      const agentsData = await agentsRes.json()
       const deptData = await deptRes.json()
-      setEmployees(empData.employees || [])
+      setAgents(agentsData.agents || [])
       setDepartments(deptData.departments || [])
     } catch (err) {
       console.error('Failed to fetch data:', err)
@@ -52,37 +57,25 @@ export default function HR() {
     }
   }
 
-  const addEmployee = async () => {
+  const addAgent = async () => {
     try {
-      const res = await fetch(`${API_BASE}/company/employees/add`, {
+      const res = await fetch(`${API_BASE}/company/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEmployee)
+        body: JSON.stringify({
+          name: newAgent.name,
+          role: newAgent.role,
+          department: newAgent.department,
+          skills: []
+        })
       })
       if (res.ok) {
         fetchData()
-        setShowAddEmployee(false)
-        setNewEmployee({ name: '', role: '', department: '', email: '', salary: 0 })
+        setShowAddAgent(false)
+        setNewAgent({ name: '', role: '', department: '' })
       }
     } catch (err) {
-      console.error('Failed to add employee:', err)
-    }
-  }
-
-  const addDepartment = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/company/departments/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newDept)
-      })
-      if (res.ok) {
-        fetchData()
-        setShowAddDept(false)
-        setNewDept({ name: '', type: '', budget: 0 })
-      }
-    } catch (err) {
-      console.error('Failed to add department:', err)
+      console.error('Failed to add agent:', err)
     }
   }
 
@@ -105,16 +98,10 @@ export default function HR() {
 
       <div className="flex gap-4">
         <button
-          onClick={() => setShowAddEmployee(true)}
+          onClick={() => setShowAddAgent(true)}
           className="px-4 py-2 rounded-lg font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
         >
-          + Add Employee
-        </button>
-        <button
-          onClick={() => setShowAddDept(true)}
-          className="px-4 py-2 rounded-lg font-medium bg-green-500 text-white hover:bg-green-600 transition-colors"
-        >
-          + Add Department
+          + Add Agent
         </button>
       </div>
 
@@ -129,8 +116,8 @@ export default function HR() {
                   <div className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>{dept.type}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold" style={{ color: isDark ? '#fff' : '#111827' }}>${dept.budget.toLocaleString()}</div>
-                  <div className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>budget</div>
+                  <div className="font-semibold" style={{ color: isDark ? '#fff' : '#111827' }}>{dept.agent_count}</div>
+                  <div className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>agents</div>
                 </div>
               </div>
             ))}
@@ -141,118 +128,67 @@ export default function HR() {
         </div>
 
         <div className="glass-card">
-          <h2 className="text-xl font-semibold mb-4" style={{ color: isDark ? '#fff' : '#111827' }}>Employees</h2>
+          <h2 className="text-xl font-semibold mb-4" style={{ color: isDark ? '#fff' : '#111827' }}>Agents</h2>
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {employees.map(emp => (
-              <div key={emp.id} className="p-3 rounded-lg" style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}>
+            {agents.map(agent => (
+              <div key={agent.id} className="p-3 rounded-lg" style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="font-medium" style={{ color: isDark ? '#fff' : '#111827' }}>{emp.name}</div>
-                  <div className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>${emp.salary.toLocaleString()}/yr</div>
+                  <div className="font-medium" style={{ color: isDark ? '#fff' : '#111827' }}>{agent.name}</div>
+                  <div className="text-sm px-2 py-1 rounded" style={{ 
+                    background: agent.status === 'working' ? '#10b981' : agent.status === 'idle' ? '#6b7280' : '#ef4444',
+                    color: '#fff'
+                  }}>{agent.status}</div>
                 </div>
                 <div className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  {emp.role} • {emp.department}
+                  {agent.role} • {agent.department}
                 </div>
                 <div className="text-xs mt-1" style={{ color: isDark ? '#6b7280' : '#9ca3af' }}>
-                  {emp.email} • Hired: {emp.hire_date}
+                  Tasks: {agent.tasks_completed} completed, {agent.tasks_failed} failed • Tokens: {agent.tokens_used}
                 </div>
               </div>
             ))}
-            {employees.length === 0 && (
-              <p className="text-center py-4" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>No employees</p>
+            {agents.length === 0 && (
+              <p className="text-center py-4" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>No agents</p>
             )}
           </div>
         </div>
       </div>
 
-      {showAddEmployee && (
+      {showAddAgent && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="glass-card p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4" style={{ color: isDark ? '#fff' : '#111827' }}>Add Employee</h2>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: isDark ? '#fff' : '#111827' }}>Add Agent</h2>
             <div className="space-y-4">
               <input
                 type="text"
                 placeholder="Name"
-                value={newEmployee.name}
-                onChange={e => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                value={newAgent.name}
+                onChange={e => setNewAgent({ ...newAgent, name: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border"
                 style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
               />
               <input
                 type="text"
-                placeholder="Role"
-                value={newEmployee.role}
-                onChange={e => setNewEmployee({ ...newEmployee, role: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border"
-                style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={newEmployee.email}
-                onChange={e => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                placeholder="Role (e.g., Developer, Designer)"
+                value={newAgent.role}
+                onChange={e => setNewAgent({ ...newAgent, role: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border"
                 style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
               />
               <select
-                value={newEmployee.department}
-                onChange={e => setNewEmployee({ ...newEmployee, department: e.target.value })}
+                value={newAgent.department}
+                onChange={e => setNewAgent({ ...newAgent, department: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border"
                 style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
               >
                 <option value="">Select Department</option>
                 {departments.map(dept => (
-                  <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  <option key={dept.id} value={dept.type}>{dept.name}</option>
                 ))}
               </select>
-              <input
-                type="number"
-                placeholder="Salary"
-                value={newEmployee.salary || ''}
-                onChange={e => setNewEmployee({ ...newEmployee, salary: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 rounded-lg border"
-                style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
-              />
               <div className="flex gap-2">
-                <button onClick={addEmployee} className="flex-1 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">Add</button>
-                <button onClick={() => setShowAddEmployee(false)} className="flex-1 py-2 rounded-lg" style={{ background: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAddDept && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="glass-card p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4" style={{ color: isDark ? '#fff' : '#111827' }}>Add Department</h2>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Department Name"
-                value={newDept.name}
-                onChange={e => setNewDept({ ...newDept, name: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border"
-                style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
-              />
-              <input
-                type="text"
-                placeholder="Type (e.g., engineering, sales)"
-                value={newDept.type}
-                onChange={e => setNewDept({ ...newDept, type: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border"
-                style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
-              />
-              <input
-                type="number"
-                placeholder="Budget"
-                value={newDept.budget || ''}
-                onChange={e => setNewDept({ ...newDept, budget: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 rounded-lg border"
-                style={{ background: isDark ? '#1f2937' : '#fff', borderColor: isDark ? '#374151' : '#d1d5db', color: isDark ? '#fff' : '#111827' }}
-              />
-              <div className="flex gap-2">
-                <button onClick={addDepartment} className="flex-1 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600">Add</button>
-                <button onClick={() => setShowAddDept(false)} className="flex-1 py-2 rounded-lg" style={{ background: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }}>Cancel</button>
+                <button onClick={addAgent} className="flex-1 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">Add</button>
+                <button onClick={() => setShowAddAgent(false)} className="flex-1 py-2 rounded-lg" style={{ background: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }}>Cancel</button>
               </div>
             </div>
           </div>

@@ -11,22 +11,46 @@ interface Template {
   behavior: string
 }
 
+interface Agent {
+  id: string
+  name: string
+  role: string
+  department: string
+  status: string
+}
+
 const API_BASE = 'http://localhost:8888/api'
 
 const DEFAULT_TEMPLATES: Template[] = [
-  { id: '1', name: 'Junior Developer', description: 'Entry-level developer for routine tasks', department: 'Engineering', roles: ['developer'], skills: ['coding', 'testing'], hourly_rate: 25, behavior: 'working' },
-  { id: '2', name: 'Senior Developer', description: 'Experienced developer for complex tasks', department: 'Engineering', roles: ['developer', 'reviewer'], skills: ['coding', 'review', 'architecture'], hourly_rate: 75, behavior: 'working' },
-  { id: '3', name: 'Sales Representative', description: 'Handle customer interactions and sales', department: 'Sales', roles: ['sales'], skills: ['communication', 'negotiation'], hourly_rate: 35, behavior: 'communicating' },
-  { id: '4', name: 'Product Manager', description: 'Manage product development and roadmap', department: 'Product', roles: ['manager'], skills: ['planning', 'communication'], hourly_rate: 80, behavior: 'planning' },
-  { id: '5', name: 'QA Engineer', description: 'Quality assurance and testing', department: 'Engineering', roles: ['qa'], skills: ['testing', 'documentation'], hourly_rate: 45, behavior: 'working' },
-  { id: '6', name: 'DevOps Engineer', description: 'Infrastructure and deployment management', department: 'Operations', roles: ['devops'], skills: ['deployment', 'monitoring'], hourly_rate: 70, behavior: 'working' }
+  { id: '1', name: 'Junior Developer', description: 'Entry-level developer for routine tasks', department: 'engineering', roles: ['developer'], skills: ['coding', 'testing'], hourly_rate: 25, behavior: 'working' },
+  { id: '2', name: 'Senior Developer', description: 'Experienced developer for complex tasks', department: 'engineering', roles: ['developer', 'reviewer'], skills: ['coding', 'review', 'architecture'], hourly_rate: 75, behavior: 'working' },
+  { id: '3', name: 'Sales Representative', description: 'Handle customer interactions and sales', department: 'sales', roles: ['sales'], skills: ['communication', 'negotiation'], hourly_rate: 35, behavior: 'communicating' },
+  { id: '4', name: 'Product Manager', description: 'Manage product development and roadmap', department: 'product', roles: ['manager'], skills: ['planning', 'communication'], hourly_rate: 80, behavior: 'planning' },
+  { id: '5', name: 'QA Engineer', description: 'Quality assurance and testing', department: 'engineering', roles: ['qa'], skills: ['testing', 'documentation'], hourly_rate: 45, behavior: 'working' },
+  { id: '6', name: 'DevOps Engineer', description: 'Infrastructure and deployment management', department: 'operations', roles: ['devops'], skills: ['deployment', 'monitoring'], hourly_rate: 70, behavior: 'working' },
+  { id: '7', name: 'Marketing Specialist', description: 'Plan and execute marketing campaigns', department: 'marketing', roles: ['marketing'], skills: ['content', 'seo', 'analytics'], hourly_rate: 50, behavior: 'working' },
+  { id: '8', name: 'Financial Analyst', description: 'Analyze financial data and reports', department: 'finance', roles: ['analyst'], skills: ['accounting', 'excel', 'reporting'], hourly_rate: 65, behavior: 'working' },
+  { id: '9', name: 'Customer Support', description: 'Handle customer inquiries and issues', department: 'customer_service', roles: ['support'], skills: ['communication', 'problem-solving'], hourly_rate: 30, behavior: 'communicating' },
+  { id: '10', name: 'HR Manager', description: 'Manage recruitment and employee relations', department: 'hr', roles: ['hr'], skills: ['recruitment', 'interviewing', 'policy'], hourly_rate: 60, behavior: 'communicating' },
+  { id: '11', name: 'Legal Counsel', description: 'Handle legal matters and compliance', department: 'legal', roles: ['legal'], skills: ['contracts', 'compliance', 'research'], hourly_rate: 90, behavior: 'thinking' },
+  { id: '12', name: 'Data Scientist', description: 'Analyze data and build models', department: 'engineering', roles: ['data-scientist'], skills: ['python', 'ml', 'statistics'], hourly_rate: 85, behavior: 'thinking' },
+  { id: '13', name: 'UI/UX Designer', description: 'Design user interfaces and experiences', department: 'product', roles: ['designer'], skills: ['figma', 'prototyping', 'user-research'], hourly_rate: 55, behavior: 'working' },
+  { id: '14', name: 'Content Writer', description: 'Create content for marketing', department: 'marketing', roles: ['writer'], skills: ['writing', 'editing', 'seo'], hourly_rate: 35, behavior: 'working' },
+  { id: '15', name: 'Project Coordinator', description: 'Coordinate projects and timelines', department: 'operations', roles: ['coordinator'], skills: ['planning', 'organizing', 'communication'], hourly_rate: 45, behavior: 'working' },
+  { id: '16', name: 'Security Engineer', description: 'Ensure system security', department: 'engineering', roles: ['security'], skills: ['penetration-testing', 'security-audit', 'compliance'], hourly_rate: 80, behavior: 'working' },
+  { id: '17', name: 'Technical Writer', description: 'Create technical documentation', department: 'engineering', roles: ['writer'], skills: ['documentation', 'api-docs', 'markdown'], hourly_rate: 40, behavior: 'working' },
+  { id: '18', name: 'Business Analyst', description: 'Analyze business requirements', department: 'product', roles: ['analyst'], skills: ['requirements', 'sql', 'reporting'], hourly_rate: 70, behavior: 'thinking' }
 ]
 
 export default function Templates() {
   const [templates, setTemplates] = useState<Template[]>(DEFAULT_TEMPLATES)
+  const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(false)
   const [theme, setTheme] = useState('dark')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showUseModal, setShowUseModal] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([])
   const [newTemplate, setNewTemplate] = useState({ name: '', description: '', department: '', roles: '', skills: '', hourly_rate: 50, behavior: 'working' })
 
   useEffect(() => {
@@ -37,10 +61,17 @@ export default function Templates() {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch(`${API_BASE}/company/templates`)
-      if (res.ok) {
-        const data = await res.json()
+      const [templatesRes, agentsRes] = await Promise.all([
+        fetch(`${API_BASE}/company/templates`),
+        fetch(`${API_BASE}/company/agents`)
+      ])
+      if (templatesRes.ok) {
+        const data = await templatesRes.json()
         if (data.templates?.length > 0) setTemplates(data.templates)
+      }
+      if (agentsRes.ok) {
+        const data = await agentsRes.json()
+        setAgents(data.agents || [])
       }
     } catch (err) {
       console.log('Using default templates')
@@ -65,23 +96,53 @@ export default function Templates() {
     setNewTemplate({ name: '', description: '', department: '', roles: '', skills: '', hourly_rate: 50, behavior: 'working' })
   }
 
-  const useTemplate = async (template: Template) => {
-    try {
-      await fetch(`${API_BASE}/company/agents/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${template.name} Agent`,
-          role: template.roles[0] || 'worker',
-          department: template.department,
-          hourly_rate: template.hourly_rate,
-          behavior: template.behavior
+  const openUseTemplate = (template: Template) => {
+    setSelectedTemplate(template)
+    setSelectedAgents([])
+    setShowUseModal(true)
+  }
+
+  const applyTemplate = async () => {
+    if (!selectedTemplate) return
+    
+    if (selectedAgents.length > 0) {
+      for (const agentId of selectedAgents) {
+        try {
+          await fetch(`${API_BASE}/company/agents/${agentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: selectedTemplate.roles[0] || 'worker',
+              behavior: selectedTemplate.behavior,
+              skills: selectedTemplate.skills
+            })
+          })
+        } catch (err) {
+          console.error('Failed to update agent:', err)
+        }
+      }
+      alert(`Template applied to ${selectedAgents.length} agent(s)!`)
+    } else {
+      try {
+        const res = await fetch(`${API_BASE}/company/agents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `${selectedTemplate.name} Agent`,
+            role: selectedTemplate.roles[0] || 'worker',
+            department: selectedTemplate.department,
+            skills: selectedTemplate.skills
+          })
         })
-      })
-      alert('Agent created from template!')
-    } catch (err) {
-      console.error('Failed to create agent from template:', err)
+        if (res.ok) {
+          alert('New agent created from template!')
+        }
+      } catch (err) {
+        console.error('Failed to create agent from template:', err)
+      }
     }
+    setShowUseModal(false)
+    fetchTemplates()
   }
 
   const isDark = theme === 'dark'
@@ -129,7 +190,7 @@ export default function Templates() {
               ))}
             </div>
             <button
-              onClick={() => useTemplate(template)}
+              onClick={() => openUseTemplate(template)}
               className="w-full py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
             >
               Use Template
@@ -205,6 +266,53 @@ export default function Templates() {
                 <button onClick={createTemplate} className="flex-1 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">Create</button>
                 <button onClick={() => setShowCreateModal(false)} className="flex-1 py-2 rounded-lg" style={{ background: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }}>Cancel</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUseModal && selectedTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="glass-card p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-2" style={{ color: isDark ? '#fff' : '#111827' }}>Use Template</h2>
+            <p className="text-sm mb-4" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+              {selectedTemplate.name} - {selectedTemplate.department}
+            </p>
+            
+            <div className="mb-4">
+              <p className="text-sm mb-2" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                Select existing agents to apply this template (leave empty to create new agent):
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {agents.map(agent => (
+                  <label key={agent.id} className="flex items-center gap-2 p-2 rounded cursor-pointer" style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedAgents.includes(agent.id)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedAgents([...selectedAgents, agent.id])
+                        } else {
+                          setSelectedAgents(selectedAgents.filter(id => id !== agent.id))
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span style={{ color: isDark ? '#fff' : '#111827' }}>{agent.name}</span>
+                    <span className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>({agent.department})</span>
+                  </label>
+                ))}
+                {agents.length === 0 && (
+                  <p className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>No agents available</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={applyTemplate} className="flex-1 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">
+                {selectedAgents.length > 0 ? `Apply to ${selectedAgents.length} Agent(s)` : 'Create New Agent'}
+              </button>
+              <button onClick={() => setShowUseModal(false)} className="flex-1 py-2 rounded-lg" style={{ background: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }}>Cancel</button>
             </div>
           </div>
         </div>
