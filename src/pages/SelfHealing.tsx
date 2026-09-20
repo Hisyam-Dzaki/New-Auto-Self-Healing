@@ -35,14 +35,29 @@ export default function SelfHealing() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, eventsRes] = await Promise.all([
-        fetch(`${API_BASE}/healing/stats`),
-        fetch(`${API_BASE}/healing/events`)
-      ])
-      const statsData = await statsRes.json()
-      const eventsData = await eventsRes.json()
-      setStats(statsData)
-      setEvents(eventsData.events || [])
+      const historyRes = await fetch(`${API_BASE}/heal/history`)
+      const historyData = await historyRes.json()
+      const records = historyData.history || []
+
+      const totalHeals = records.length
+      const successfulHeals = records.filter((r: any) => r.status === 'resolved' || r.status === 'completed').length
+      const failedHeals = records.filter((r: any) => r.status === 'failed').length
+      const successRate = totalHeals > 0 ? (successfulHeals / totalHeals) * 100 : 0
+
+      setStats({
+        total_heals: totalHeals,
+        successful_heals: successfulHeals,
+        failed_heals: failedHeals,
+        success_rate: successRate
+      })
+      setEvents(records.map((r: any) => ({
+        id: r.task_id,
+        timestamp: r.timestamp ? new Date(r.timestamp * 1000).toLocaleString() : 'N/A',
+        project_name: r.project_name || 'Unknown',
+        error_type: r.classification || 'unknown',
+        status: r.status,
+        action_taken: r.result || 'Queued'
+      })))
     } catch (err) {
       console.error('Failed to fetch healing data:', err)
     } finally {
@@ -53,7 +68,11 @@ export default function SelfHealing() {
   const triggerManualHealing = async () => {
     setTriggering(true)
     try {
-      await fetch(`${API_BASE}/healing/trigger`, { method: 'POST' })
+      await fetch(`${API_BASE}/heal/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service: 'all', logs: 'Manual trigger from dashboard' })
+      })
       setTimeout(() => {
         setTriggering(false)
         fetchData()
@@ -65,7 +84,7 @@ export default function SelfHealing() {
   }
 
   const isDark = theme === 'dark'
-  const webhookUrl = `http://localhost:8888/api/healing/webhook`
+  const webhookUrl = `${API_BASE}/heal/receive`
 
   if (loading) {
     return (
