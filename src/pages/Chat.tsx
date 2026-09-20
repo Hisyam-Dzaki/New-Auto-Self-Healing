@@ -62,21 +62,22 @@ export default function Chat() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await fetch(`${API_BASE}/agent/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: input,
-          agent_id: selectedAgent,
-          history: messages.slice(-10)
+          projectId: undefined,
+          model: undefined,
+          workflow: undefined
         })
       })
-      const data = await res.json()
+      const text = await res.text()
       
       const agentMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'No response',
+        content: text || 'No response',
         agent_name: agents.find(a => a.id === selectedAgent)?.name || 'Agent',
         timestamp: new Date().toISOString()
       }
