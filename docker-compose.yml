@@ -11,7 +11,35 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+      - NINEROUTER_BASE_URL=${NINEROUTER_BASE_URL}
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+    volumes:
+      - ./projects:/projects
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - agentforge
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      - DATABASE_URL=postgresql://agentforge:password@postgres:5432/agentforge
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NINEROUTER_API_KEY=${NINEROUTER_API_KEY}
+      - NINEROUTER_BASE_URL=${NINEROUTER_BASE_URL}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - ALERT_MIN_REPEAT_SECONDS=${ALERT_MIN_REPEAT_SECONDS:-900}
     volumes:
       - ./projects:/projects
       - ./data:/data

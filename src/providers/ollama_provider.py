@@ -5,7 +5,9 @@ import httpx
 class OllamaProvider(BaseLLMProvider):
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
-        self.client = httpx.AsyncClient()
+        # local models can take 10s+ to cold-load into memory on first call;
+        # httpx's 5s default timeout was killing every first request.
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
 
     async def stream_completion(
         self, 
@@ -25,8 +27,8 @@ class OllamaProvider(BaseLLMProvider):
                         yield data["message"]["content"]
 
     async def completion(
-        self, 
-        messages: List[Dict[str, str]], 
+        self,
+        messages: List[Dict[str, str]],
         model: str
     ) -> str:
         response = await self.client.post(
@@ -34,4 +36,9 @@ class OllamaProvider(BaseLLMProvider):
             json={"model": model, "messages": messages, "stream": False}
         )
         data = response.json()
+
+        if "message" not in data:
+            error = data.get("error", response.text)
+            raise RuntimeError(f"Ollama error (model={model}): {error}")
+
         return data["message"]["content"]

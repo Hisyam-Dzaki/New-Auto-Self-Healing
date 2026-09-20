@@ -26,9 +26,10 @@ class DeterministicFixes:
     
     @staticmethod
     def clear_cache() -> Dict:
+        import os
         import redis
         try:
-            r = redis.from_url("redis://localhost:6379")
+            r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
             r.flushdb()
             return {
                 "status": "success",
@@ -197,9 +198,11 @@ Provide:
 Be concise."""
         
         try:
+            import os
+            local_model = os.getenv("OLLAMA_MODEL", "codellama:7b")
             response = await provider.completion(
                 messages=[{"role": "user", "content": prompt}],
-                model="codellama:7b"
+                model=local_model
             )
             
             return {

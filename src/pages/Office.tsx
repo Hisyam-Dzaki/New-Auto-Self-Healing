@@ -6,6 +6,15 @@ interface Agent {
   department: string
   status: string
   behavior: string
+  is_system_agent?: boolean
+}
+
+interface HealingHistoryItem {
+  task_id: string
+  status: string
+  source: string
+  classification?: { summary?: string; severity?: string }
+  timestamp: number
 }
 
 interface OfficeRoom {
@@ -74,9 +83,14 @@ const STATUS_COLORS: Record<string, string> = {
   traveling: '#06b6d4',
   error: '#ef4444',
   success: '#22c55e',
+  debugging: '#f97316',
 }
 
+// 'debugging'/'error'/'success' are the behaviors the self-healing worker sets on the
+// Ops Engine agent (see src/worker/worker.py _update_ops_agent) — routing them to the
+// Server Room makes an active incident visually distinct from a generic "working" agent.
 function getStatusRoom(behavior: string): string {
+  if (['debugging', 'error'].includes(behavior)) return 'server'
   if (['meeting', 'communicating'].includes(behavior)) return 'meeting1'
   if (['break', 'idle'].includes(behavior)) return 'lounge'
   return 'eng1'
@@ -89,6 +103,8 @@ export default function Office() {
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null)
   const [time, setTime] = useState(0)
   const [theme, setTheme] = useState('dark')
+  const [history, setHistory] = useState<HealingHistoryItem[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('agentforge-theme')
@@ -100,6 +116,29 @@ export default function Office() {
     }, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const agent = agents.find(a => a.id === selectedAgent)
+    if (agent?.is_system_agent) {
+      fetchHistory(agent.id)
+    } else {
+      setHistory([])
+    }
+  }, [selectedAgent])
+
+  const fetchHistory = async (agentId: string) => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`${API_BASE}/heal/history?agent_id=${agentId}&limit=10`)
+      const data = await res.json()
+      setHistory(data.history || [])
+    } catch (err) {
+      console.error('Failed to fetch healing history:', err)
+      setHistory([])
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
 
   useEffect(() => {
     if (agents.length > 0) {
@@ -201,10 +240,12 @@ export default function Office() {
           <h1 className="text-2xl font-bold" style={{ color: isDark ? '#fff' : '#111827' }}>Office</h1>
           <p style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Isometric office visualization</p>
         </div>
-        <div className="flex items-center gap-4 text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+        <div className="flex items-center gap-4 text-sm flex-wrap" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-500" /> Idle</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Working</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500" /> Meeting</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full" style={{ background: '#f97316' }} /> Healing incident</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> Healing failed</span>
         </div>
       </header>
 
@@ -320,8 +361,10 @@ export default function Office() {
                   >
                     <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: isDark ? '#fff' : '#111827' }}>{agent.name}</p>
-                      <p className="text-xs truncate" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>{agent.department}</p>
+                      <p className="text-sm font-medium truncate" style={{ color: isDark ? '#fff' : '#111827' }}>
+                        {agent.is_system_agent ? '⚙️ ' : ''}{agent.name}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>{agent.department} · {agent.behavior}</p>
                     </div>
                   </button>
                 )
@@ -331,6 +374,38 @@ export default function Office() {
               )}
             </div>
           </div>
+
+          {agents.find(a => a.id === selectedAgent)?.is_system_agent && (
+            <div className="glass-card">
+              <h3 className="font-semibold mb-3" style={{ color: isDark ? '#fff' : '#111827' }}>Recent Healing Activity</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {loadingHistory && (
+                  <p className="text-center py-4 text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Loading...</p>
+                )}
+                {!loadingHistory && history.length === 0 && (
+                  <p className="text-center py-4 text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>No healing activity yet</p>
+                )}
+                {history.map(item => {
+                  const statusColor = item.status === 'fixed' || item.status === 'analysis_complete'
+                    ? '#22c55e'
+                    : item.status === 'failed' ? '#ef4444' : '#f97316'
+                  return (
+                    <div key={item.task_id} className="p-2 rounded-lg" style={{ background: isDark ? '#1f2937' : '#f3f4f6' }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium" style={{ color: statusColor }}>{item.status}</span>
+                        <span className="text-xs" style={{ color: isDark ? '#6b7280' : '#9ca3af' }}>
+                          {new Date(item.timestamp * 1000).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-xs mt-1 truncate" style={{ color: isDark ? '#d1d5db' : '#4b5563' }}>
+                        {item.classification?.summary || item.task_id} — from {item.source}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

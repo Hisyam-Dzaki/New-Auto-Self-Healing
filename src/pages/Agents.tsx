@@ -53,7 +53,7 @@ export default function Agents() {
 
   const addAgent = async () => {
     try {
-      const res = await fetch(`${API_BASE}/company/agents/add`, {
+      const res = await fetch(`${API_BASE}/company/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAgent)

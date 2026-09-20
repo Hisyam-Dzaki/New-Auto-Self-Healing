@@ -1,9 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import chat, projects, containers, files, healing, company, github
+from src.api import chat, projects, containers, files, healing, company, github, workers
+from src.models.database import init_db
 import uvicorn
 
-app = FastAPI(title="AgentForge API - AI Company Simulation", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+app = FastAPI(title="AgentForge API - AI Company Simulation", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,6 +27,7 @@ app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(healing.router, prefix="/api", tags=["healing"])
 app.include_router(company.router, prefix="/api", tags=["company"])
 app.include_router(github.router, prefix="/api", tags=["github"])
+app.include_router(workers.router, prefix="/api", tags=["workers"])
 
 @app.get("/")
 async def root():

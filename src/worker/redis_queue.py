@@ -1,5 +1,6 @@
 import redis
 import json
+import os
 import time
 from typing import Dict, Any, Optional, List
 from enum import Enum
@@ -11,7 +12,8 @@ class QueueType(str, Enum):
     DEADLETTER = "queue:deadletter"
 
 class RedisQueue:
-    def __init__(self, redis_url: str = "redis://localhost:6379"):
+    def __init__(self, redis_url: Optional[str] = None):
+        redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
         self.client = redis.from_url(redis_url, decode_responses=True)
         self.max_retries = 3
     
