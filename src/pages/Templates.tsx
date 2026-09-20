@@ -61,20 +61,13 @@ export default function Templates() {
 
   const fetchTemplates = async () => {
     try {
-      const [templatesRes, agentsRes] = await Promise.all([
-        fetch(`${API_BASE}/company/templates`),
-        fetch(`${API_BASE}/company/agents`)
-      ])
-      if (templatesRes.ok) {
-        const data = await templatesRes.json()
-        if (data.templates?.length > 0) setTemplates(data.templates)
-      }
+      const agentsRes = await fetch(`${API_BASE}/company/agents`)
       if (agentsRes.ok) {
         const data = await agentsRes.json()
         setAgents(data.agents || [])
       }
     } catch (err) {
-      console.log('Using default templates')
+      console.log('Using default agents')
     } finally {
       setLoading(false)
     }
