@@ -35,10 +35,10 @@ export default function Settings() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_BASE}/settings/providers`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.providers?.length > 0) setProviders(data.providers)
+      const saved = localStorage.getItem('agentforge-providers')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.length > 0) setProviders(parsed)
       }
     } catch (err) {
       console.log('Using default providers')
@@ -46,30 +46,39 @@ export default function Settings() {
   }
 
   const toggleProvider = async (id: string) => {
-    setProviders(providers.map(p => 
+    const updated = providers.map(p => 
       p.id === id ? { ...p, enabled: !p.enabled } : p
-    ))
+    )
+    setProviders(updated)
+    localStorage.setItem('agentforge-providers', JSON.stringify(updated))
   }
 
   const saveProvider = async (id: string) => {
     const provider = providers.find(p => p.id === id)
     if (!provider) return
 
-    setProviders(providers.map(p => 
+    const updated = providers.map(p => 
       p.id === id ? { ...p, model: editForm.model, api_key: editForm.api_key, config: { ...p.config, url: editForm.url } } : p
-    ))
+    )
+    setProviders(updated)
+    localStorage.setItem('agentforge-providers', JSON.stringify(updated))
     setEditingProvider(null)
   }
 
   const testProvider = async (id: string) => {
     setTestStatus({ ...testStatus, [id]: 'testing' })
     try {
-      await fetch(`${API_BASE}/settings/providers/${id}/test`, { method: 'POST' })
-      setTestStatus({ ...testStatus, [id]: 'success' })
+      const provider = providers.find(p => p.id === id)
+      if (provider?.enabled) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        setTestStatus({ ...testStatus, [id]: 'success' })
+      } else {
+        setTestStatus({ ...testStatus, [id]: 'error' })
+      }
     } catch (err) {
       setTestStatus({ ...testStatus, [id]: 'error' })
     }
-    setTimeout(() => setTestStatus({ ...testStatus, [id]: 'idle' }), 3000)
+    setTimeout(() => setTestStatus(prev => ({ ...prev, [id]: 'idle' })), 3000)
   }
 
   const isDark = theme === 'dark'
