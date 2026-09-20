@@ -43,10 +43,16 @@ export default function Projects() {
 
   const createProject = async () => {
     try {
-      const res = await fetch(`${API_BASE}/projects/create`, {
+      const res = await fetch(`${API_BASE}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newProject, import_mode: importMode })
+        body: JSON.stringify({
+          name: newProject.name,
+          description: newProject.description,
+          source_type: importMode,
+          repo_url: importMode === 'github' ? newProject.repository_url : undefined,
+          auto_healing_enabled: newProject.auto_healing
+        })
       })
       if (res.ok) {
         fetchProjects()
@@ -60,10 +66,10 @@ export default function Projects() {
 
   const toggleAutoHealing = async (projectId: string, enabled: boolean) => {
     try {
-      await fetch(`${API_BASE}/projects/${projectId}/healing`, {
-        method: 'POST',
+      await fetch(`${API_BASE}/projects/${projectId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
+        body: JSON.stringify({ auto_healing_enabled: enabled })
       })
       fetchProjects()
     } catch (err) {
