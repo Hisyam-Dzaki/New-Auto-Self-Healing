@@ -28,32 +28,40 @@ export default function Analytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch(`${API_BASE}/company/analytics`)
-      const result = await res.json()
-      setData(result)
+      const [statsRes, budgetsRes] = await Promise.all([
+        fetch(`${API_BASE}/company/stats`),
+        fetch(`${API_BASE}/company/budgets`)
+      ])
+      const stats = await statsRes.json()
+      const budgets = await budgetsRes.json()
+
+      const totalTokens = stats.total_tokens || 0
+      const estimatedCost = (totalTokens / 1000) * 0.01
+
+      setData({
+        total_agents: stats.total_agents || 0,
+        active_agents: stats.active_tasks || 0,
+        total_tasks: (stats.active_tasks || 0) + (stats.completed_tasks || 0),
+        completed_tasks: stats.completed_tasks || 0,
+        total_tokens: totalTokens,
+        cost: estimatedCost,
+        department_stats: (stats.departments || []).map((d: any) => ({
+          department: d.name || d.type,
+          agents: d.agent_count || 0,
+          tasks: (d.active_tasks || 0) + (d.completed_tasks || 0)
+        })),
+        daily_stats: []
+      })
     } catch (err) {
       setData({
-        total_agents: 12,
-        active_agents: 8,
-        total_tasks: 156,
-        completed_tasks: 134,
-        total_tokens: 2450000,
-        cost: 125.50,
-        department_stats: [
-          { department: 'Engineering', agents: 5, tasks: 45 },
-          { department: 'Sales', agents: 3, tasks: 38 },
-          { department: 'Marketing', agents: 2, tasks: 28 },
-          { department: 'Operations', agents: 2, tasks: 23 }
-        ],
-        daily_stats: [
-          { date: '2026-05-10', tasks_completed: 12, tokens: 150000 },
-          { date: '2026-05-11', tasks_completed: 18, tokens: 220000 },
-          { date: '2026-05-12', tasks_completed: 15, tokens: 180000 },
-          { date: '2026-05-13', tasks_completed: 22, tokens: 280000 },
-          { date: '2026-05-14', tasks_completed: 20, tokens: 250000 },
-          { date: '2026-05-15', tasks_completed: 25, tokens: 320000 },
-          { date: '2026-05-16', tasks_completed: 22, tokens: 290000 }
-        ]
+        total_agents: 0,
+        active_agents: 0,
+        total_tasks: 0,
+        completed_tasks: 0,
+        total_tokens: 0,
+        cost: 0,
+        department_stats: [],
+        daily_stats: []
       })
     } finally {
       setLoading(false)
