@@ -54,10 +54,16 @@ export default function Tasks() {
 
   const createTask = async () => {
     try {
-      const res = await fetch(`${API_BASE}/company/tasks/create`, {
+      const res = await fetch(`${API_BASE}/company/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask)
+        body: JSON.stringify({
+          title: newTask.title,
+          description: newTask.description,
+          priority: newTask.priority,
+          department: 'engineering',
+          assigned_to: newTask.assignee || undefined
+        })
       })
       if (res.ok) {
         fetchData()
@@ -71,10 +77,9 @@ export default function Tasks() {
 
   const assignTask = async (taskId: string, agentId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/company/tasks/${taskId}/assign`, {
+      const res = await fetch(`${API_BASE}/company/tasks/${taskId}/start?agent_id=${agentId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId })
+        headers: { 'Content-Type': 'application/json' }
       })
       if (res.ok) fetchData()
     } catch (err) {
