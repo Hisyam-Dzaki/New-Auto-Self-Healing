@@ -22,6 +22,9 @@ class GitHubTokenResponse(BaseModel):
     token_type: str
     scope: str
 
+class GitHubConnectRequest(BaseModel):
+    access_token: str
+
 class GitHubRepo(BaseModel):
     id: int
     name: str
@@ -189,3 +192,45 @@ async def logout(token_id: str):
     if token_id in github_tokens_db:
         del github_tokens_db[token_id]
     return {"status": "logged out"}
+
+@router.post("/github/connect")
+async def connect_with_pat(request: GitHubConnectRequest):
+    """Connect with a personal access token directly (simplified flow)"""
+    headers = {"Authorization": f"token {request.access_token}"}
+    response = requests.get("https://api.github.com/user", headers=headers)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Invalid access token")
+
+    user_data = response.json()
+    token_id = str(uuid.uuid4())
+    github_tokens_db[token_id] = request.access_token
+
+    return {
+        "connected": True,
+        "token_id": token_id,
+        "username": user_data.get("login", ""),
+        "name": user_data.get("name", "")
+    }
+
+@router.get("/github/status")
+async def get_status():
+    """Check if any token is connected"""
+    if not github_tokens_db:
+        return {"connected": False}
+
+    token_id = next(iter(github_tokens_db))
+    access_token = github_tokens_db[token_id]
+    headers = {"Authorization": f"token {access_token}"}
+    response = requests.get("https://api.github.com/user", headers=headers)
+
+    if response.status_code == 200:
+        user_data = response.json()
+        return {
+            "connected": True,
+            "token_id": token_id,
+            "username": user_data.get("login", ""),
+            "name": user_data.get("name", "")
+        }
+
+    return {"connected": False}

@@ -14,7 +14,7 @@ interface GitHubRepo {
 interface GitHubConfig {
   connected: boolean
   username: string
-  access_token: string
+  token_id: string
 }
 
 const API_BASE = 'http://localhost:8888/api'
@@ -23,7 +23,7 @@ export default function GitHub() {
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [loading, setLoading] = useState(true)
   const [theme, setTheme] = useState('dark')
-  const [config, setConfig] = useState<GitHubConfig>({ connected: false, username: '', access_token: '' })
+  const [config, setConfig] = useState<GitHubConfig>({ connected: false, username: '', token_id: '' })
   const [tokenInput, setTokenInput] = useState('')
   const [connecting, setConnecting] = useState(false)
 
@@ -37,8 +37,8 @@ export default function GitHub() {
     try {
       const res = await fetch(`${API_BASE}/github/status`)
       const data = await res.json()
-      setConfig(data)
-      if (data.connected) fetchRepos()
+      setConfig({ connected: data.connected, username: data.username || '', token_id: data.token_id || '' })
+      if (data.connected) fetchRepos(data.token_id)
     } catch (err) {
       console.error('Failed to check GitHub connection:', err)
     } finally {
@@ -55,8 +55,9 @@ export default function GitHub() {
         body: JSON.stringify({ access_token: tokenInput })
       })
       if (res.ok) {
-        setConfig({ connected: true, username: 'Connected', access_token: tokenInput })
-        fetchRepos()
+        const data = await res.json()
+        setConfig({ connected: true, username: data.username, token_id: data.token_id })
+        fetchRepos(data.token_id)
       } else {
         alert('Failed to connect. Check your token.')
       }
@@ -68,8 +69,8 @@ export default function GitHub() {
 
   const disconnect = async () => {
     try {
-      await fetch(`${API_BASE}/github/disconnect`, { method: 'POST' })
-      setConfig({ connected: false, username: '', access_token: '' })
+      await fetch(`${API_BASE}/github/logout?token_id=${config.token_id}`, { method: 'POST' })
+      setConfig({ connected: false, username: '', token_id: '' })
       setRepos([])
     } catch (err) {
       console.error('Failed to disconnect:', err)
@@ -78,10 +79,10 @@ export default function GitHub() {
 
   const importRepo = async (repoFullName: string) => {
     try {
-      const res = await fetch(`${API_BASE}/projects/create`, {
+      const res = await fetch(`${API_BASE}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: repoFullName.split('/')[1], repository_url: `https://github.com/${repoFullName}`, import_mode: 'github' })
+        body: JSON.stringify({ name: repoFullName.split('/')[1], repo_url: `https://github.com/${repoFullName}`, source_type: 'github' })
       })
       if (res.ok) {
         alert('Repository imported successfully!')
@@ -91,11 +92,12 @@ export default function GitHub() {
     }
   }
 
-  const fetchRepos = async () => {
+  const fetchRepos = async (tokenId?: string) => {
     try {
-      const res = await fetch(`${API_BASE}/github/repos`)
+      const id = tokenId || config.token_id
+      const res = await fetch(`${API_BASE}/github/repos?token_id=${id}`)
       const data = await res.json()
-      setRepos(data.repositories || [])
+      setRepos(data.repos || [])
     } catch (err) {
       console.error('Failed to fetch repos:', err)
     }
